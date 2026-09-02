@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+
+# Compiled output and test artifacts
+dist/
+build/
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+*.tsbuildinfo
+
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and runtime files
+*.log
+logs/
+*.pid
+*.pid.lock
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Tool and framework caches
+.cache/
+.vite/
+.eslintcache
+.turbo/
+.parcel-cache/
+*.local
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local AI-agent configuration (project source and documentation remain tracked)
+.claude/
+.agents/
+.codex/
+
+# Temporary and backup files
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
+
+# Prisma migrations are source-controlled. Ignore only transient local databases.
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
