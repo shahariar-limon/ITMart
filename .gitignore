@@ -61,8 +61,8 @@ temp/
 *.db-journal
 *.sqlite
 *.sqlite-journal
-plan.md
-AGENTS.md
-Codex_Build_Guide.md
-Improved_Project_Plan.md
-PROJECT_STATUS_AND_DIAGRAM_PROMPTS.md
+.plan.md
+.AGENTS.md
+.Codex_Build_Guide.md
+.Improved_Project_Plan.md
+.PROJECT_STATUS_AND_DIAGRAM_PROMPTS.md
