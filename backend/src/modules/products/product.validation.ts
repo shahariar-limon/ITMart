@@ -25,7 +25,15 @@ export const createProductSchema = z
     path: ["discount"],
   });
 export const updateProductSchema = z
-  .object(productFields)
+  .object({
+    ...productFields,
+    tags: productFields.tags.removeDefault(),
+    imageUrls: productFields.imageUrls.removeDefault(),
+    discount: productFields.discount.removeDefault(),
+    specs: productFields.specs.removeDefault(),
+    warranty: productFields.warranty.removeDefault(),
+    status: productFields.status.removeDefault(),
+  })
   .partial()
   .strict()
   .refine((value) => Object.keys(value).length > 0);

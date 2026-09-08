@@ -5,11 +5,16 @@ import {
   createProduct,
   getCategories,
   getProducts,
+  updateProduct,
+  updateCategory,
 } from "./commerce-api";
+import { EditPanel } from "./EditPanel";
 import type { Category, Product } from "./types";
 import { apiError, money, Notice } from "./ui";
 
 export function AdminCatalogPage() {
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [message, setMessage] = useState("");
@@ -185,6 +190,135 @@ export function AdminCatalogPage() {
           </button>
         </form>
       </div>
+      <section className="mt-6 rounded-2xl bg-white p-5">
+        <h2 className="text-xl font-bold">Categories</h2>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {categories.map((category) => (
+            <button
+              key={category._id}
+              onClick={() => setEditingCategory(category)}
+              className="rounded-lg border px-3 py-2"
+            >
+              Edit {category.name}
+            </button>
+          ))}
+        </div>
+      </section>
+      {editingCategory && (
+        <EditPanel
+          key={editingCategory._id}
+          title={`Edit category: ${editingCategory.name}`}
+          onCancel={() => setEditingCategory(null)}
+          fields={[
+            {
+              name: "name",
+              label: "Category name",
+              value: editingCategory.name,
+            },
+            { name: "slug", label: "Slug", value: editingCategory.slug },
+            {
+              name: "description",
+              label: "Description",
+              value: editingCategory.description,
+              type: "textarea",
+              required: false,
+            },
+          ]}
+          onSave={async (data) => {
+            await updateCategory(editingCategory._id, {
+              name: String(data.get("name")),
+              slug: String(data.get("slug")),
+              description: String(data.get("description")),
+            });
+            setEditingCategory(null);
+            setMessage("Category updated.");
+            await load();
+          }}
+        />
+      )}
+      {editing && (
+        <EditPanel
+          key={editing._id}
+          title={`Edit product: ${editing.name}`}
+          onCancel={() => setEditing(null)}
+          fields={[
+            { name: "name", label: "Product name", value: editing.name },
+            { name: "sku", label: "SKU", value: editing.sku },
+            { name: "brand", label: "Brand", value: editing.brand },
+            {
+              name: "categoryId",
+              label: "Category",
+              value: editing.categoryId,
+              options: categories.map((category) => ({
+                value: category._id,
+                label: category.name,
+              })),
+            },
+            {
+              name: "price",
+              label: "Price (BDT)",
+              value: editing.price / 100,
+              type: "number",
+              min: 0,
+              step: "0.01",
+            },
+            {
+              name: "discount",
+              label: "Discount (BDT)",
+              value: editing.discount / 100,
+              type: "number",
+              min: 0,
+              step: "0.01",
+            },
+            {
+              name: "stock",
+              label: "Stock",
+              value: editing.stock,
+              type: "number",
+              min: 0,
+            },
+            {
+              name: "warranty",
+              label: "Warranty",
+              value: editing.warranty,
+              required: false,
+            },
+            {
+              name: "description",
+              label: "Description",
+              value: editing.description,
+              type: "textarea",
+            },
+            {
+              name: "imageUrls",
+              label: "Image URLs (one per line)",
+              value: editing.imageUrls.join("\n"),
+              type: "textarea",
+              required: false,
+            },
+          ]}
+          onSave={async (data) => {
+            await updateProduct(editing._id, {
+              name: String(data.get("name")),
+              sku: String(data.get("sku")),
+              brand: String(data.get("brand")),
+              categoryId: String(data.get("categoryId")),
+              price: Math.round(Number(data.get("price")) * 100),
+              discount: Math.round(Number(data.get("discount")) * 100),
+              stock: Number(data.get("stock")),
+              warranty: String(data.get("warranty")),
+              description: String(data.get("description")),
+              imageUrls: String(data.get("imageUrls"))
+                .split(/\r?\n/)
+                .map((url) => url.trim())
+                .filter(Boolean),
+            });
+            setEditing(null);
+            setMessage("Product updated.");
+            await load();
+          }}
+        />
+      )}
       <section className="mt-8 overflow-x-auto rounded-2xl bg-white shadow-sm">
         <table className="w-full text-left">
           <thead className="border-b bg-slate-50">
@@ -206,6 +340,12 @@ export function AdminCatalogPage() {
                 </td>
                 <td className="p-4">{product.stock}</td>
                 <td className="p-4">
+                  <button
+                    onClick={() => setEditing(product)}
+                    className="mr-4 font-semibold text-brand"
+                  >
+                    Edit
+                  </button>
                   <button
                     onClick={() => void archive(product._id)}
                     className="font-semibold text-red-700"

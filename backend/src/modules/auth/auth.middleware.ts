@@ -2,6 +2,7 @@ import type { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { env } from "../../config/env.js";
+import { prisma } from "../../config/prisma.js";
 import { AppError } from "../../shared/app-error.js";
 import { USER_ROLES, type UserRole } from "../users/user.model.js";
 
@@ -10,7 +11,7 @@ const tokenPayloadSchema = z.object({
   role: z.enum(USER_ROLES),
 });
 
-export const requireAuth: RequestHandler = (request, _response, next) => {
+export const requireAuth: RequestHandler = async (request, _response, next) => {
   const authorization = request.header("authorization");
   const [scheme, token] = authorization?.split(" ") ?? [];
 
@@ -25,14 +26,13 @@ export const requireAuth: RequestHandler = (request, _response, next) => {
     return;
   }
 
+  let payload: z.infer<typeof tokenPayloadSchema>;
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET, {
       issuer: "itmart-api",
       audience: "itmart-web",
     });
-    const payload = tokenPayloadSchema.parse(decoded);
-    request.user = { id: payload.sub, role: payload.role };
-    next();
+    payload = tokenPayloadSchema.parse(decoded);
   } catch {
     next(
       new AppError(
@@ -41,6 +41,29 @@ export const requireAuth: RequestHandler = (request, _response, next) => {
         "The access token is invalid or expired",
       ),
     );
+    return;
+  }
+  try {
+    // Read current access so disabling or changing a user's role takes effect
+    // for already-issued tokens as well as their next login.
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, role: true, isActive: true },
+    });
+    if (!user?.isActive) {
+      next(
+        new AppError(
+          401,
+          "ACCOUNT_INACTIVE",
+          "This account is unavailable. Please sign in again.",
+        ),
+      );
+      return;
+    }
+    request.user = { id: user.id, role: user.role };
+    next();
+  } catch (error) {
+    next(error);
   }
 };
 

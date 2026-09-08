@@ -49,6 +49,15 @@ export async function getBundles() {
   return (await apiClient.get<Envelope<{ bundles: Bundle[] }>>("/bundles")).data
     .data.bundles;
 }
+export async function updateBundle(
+  id: string,
+  input: { name: string; description: string; bundlePrice: number },
+) {
+  return (await apiClient.patch(`/bundles/${id}`, input)).data;
+}
+export async function archiveBundle(id: string) {
+  await apiClient.delete(`/bundles/${id}`);
+}
 export async function createBundle(input: {
   name: string;
   description: string;

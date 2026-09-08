@@ -13,7 +13,10 @@ const categoryFields = {
 
 export const createCategorySchema = z.object(categoryFields).strict();
 export const updateCategorySchema = z
-  .object(categoryFields)
+  .object({
+    ...categoryFields,
+    description: categoryFields.description.removeDefault(),
+  })
   .partial()
   .strict()
   .refine((value) => Object.keys(value).length > 0);

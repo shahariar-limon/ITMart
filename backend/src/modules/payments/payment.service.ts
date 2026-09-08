@@ -56,9 +56,7 @@ async function request(path: string, body: object, token?: string) {
         "Content-Type": "application/json",
         username: config.username,
         password: config.password,
-        ...(token
-          ? { Authorization: token, "X-App-Key": config.appKey }
-          : {}),
+        ...(token ? { Authorization: token, "X-App-Key": config.appKey } : {}),
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15_000),
@@ -69,11 +67,19 @@ async function request(path: string, body: object, token?: string) {
     });
   }
   const data = (await response.json().catch(() => ({}))) as BkashResponse;
-  if (!response.ok || data.errorCode)
+  if (
+    !response.ok ||
+    data.errorCode ||
+    (data.statusCode && data.statusCode !== "0000")
+  )
     throw new AppError(
       502,
       "BKASH_API_ERROR",
-      data.errorMessage ?? data.statusMessage ?? "bKash rejected the request",
+      (data.errorCode ?? data.statusCode) === "2049"
+        ? "bKash rejected the callback URL. Configure BKASH_CALLBACK_URL with the public API /api/v1/payments/bkash/callback URL."
+        : (data.errorMessage ??
+            data.statusMessage ??
+            "bKash rejected the request"),
       { providerCode: data.errorCode ?? data.statusCode },
     );
   return data;
@@ -89,7 +95,11 @@ async function grantToken() {
   });
   const token = data.id_token;
   if (typeof token !== "string")
-    throw new AppError(502, "BKASH_INVALID_RESPONSE", "bKash did not return an access token");
+    throw new AppError(
+      502,
+      "BKASH_INVALID_RESPONSE",
+      "bKash did not return an access token",
+    );
   const expiresIn = Number(data.expires_in ?? 3600);
   cachedToken = { value: token, expiresAt: Date.now() + expiresIn * 1000 };
   return token;
@@ -116,7 +126,11 @@ export async function createBkashPayment(input: {
     token,
   );
   if (typeof data.paymentID !== "string" || typeof data.bkashURL !== "string")
-    throw new AppError(502, "BKASH_INVALID_RESPONSE", "bKash did not return a checkout URL");
+    throw new AppError(
+      502,
+      "BKASH_INVALID_RESPONSE",
+      "bKash did not return a checkout URL",
+    );
   return { paymentId: data.paymentID, paymentUrl: data.bkashURL, raw: data };
 }
 

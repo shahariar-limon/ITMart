@@ -5,6 +5,18 @@ import * as controller from "./user.controller.js";
 
 export const userRouter = Router();
 userRouter.get(
+  "/",
+  requireAuth,
+  requireRole("admin"),
+  asyncHandler(controller.listUsers),
+);
+userRouter.patch(
+  "/:userId",
+  requireAuth,
+  requireRole("admin"),
+  asyncHandler(controller.updateUser),
+);
+userRouter.get(
   "/technicians",
   requireAuth,
   requireRole("admin"),

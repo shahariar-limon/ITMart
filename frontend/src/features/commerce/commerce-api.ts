@@ -47,6 +47,23 @@ export async function createProduct(input: Omit<Product, "_id" | "status">) {
 export async function archiveProduct(id: string) {
   await apiClient.delete(`/products/${id}`);
 }
+export async function updateProduct(
+  id: string,
+  input: Partial<Omit<Product, "_id">>,
+) {
+  return (
+    await apiClient.patch<Envelope<{ product: Product }>>(
+      `/products/${id}`,
+      input,
+    )
+  ).data.data.product;
+}
+export async function updateCategory(
+  id: string,
+  input: { name: string; slug: string; description: string },
+) {
+  return (await apiClient.patch(`/categories/${id}`, input)).data;
+}
 export async function getCart() {
   return (await apiClient.get<Envelope<{ cart: Cart }>>("/cart")).data.data
     .cart;
@@ -88,12 +105,15 @@ export async function checkout(
   idempotencyKey = crypto.randomUUID(),
 ) {
   return (
-    await apiClient.post<Envelope<{ order: Order; paymentUrl?: string }>>("/orders", {
-      shippingAddress,
-      paymentMethod,
-      deliveryMethod,
-      idempotencyKey,
-    })
+    await apiClient.post<Envelope<{ order: Order; paymentUrl?: string }>>(
+      "/orders",
+      {
+        shippingAddress,
+        paymentMethod,
+        deliveryMethod,
+        idempotencyKey,
+      },
+    )
   ).data.data;
 }
 export async function getOrders() {

@@ -10,6 +10,7 @@ import {
 import type { Order, OrderStatus } from "./types";
 import { apiError, Loading, money, Notice } from "./ui";
 import { useAuth } from "../auth/auth-context";
+import { EditPanel } from "./EditPanel";
 
 const NEXT: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: "confirmed",
@@ -19,6 +20,7 @@ const NEXT: Partial<Record<OrderStatus, OrderStatus>> = {
   delivered: "completed",
 };
 export function OrdersPage() {
+  const [editingId, setEditingId] = useState<string | null>(null);
   const { user } = useAuth();
   const [params] = useSearchParams();
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -36,23 +38,6 @@ export function OrdersPage() {
   async function cancel(id: string) {
     try {
       await cancelOrder(id);
-      await load();
-    } catch (caught) {
-      setError(apiError(caught));
-    }
-  }
-  async function advance(order: Order) {
-    const status = NEXT[order.status];
-    if (!status) return;
-    try {
-      const trackingNumber =
-        status === "shipped"
-          ? (window.prompt("Tracking number (required)") ?? "")
-          : "";
-      if (status === "shipped" && !trackingNumber) return;
-      const carrier =
-        status === "shipped" ? (window.prompt("Carrier name") ?? "") : "";
-      await updateOrderStatus(order._id, status, { trackingNumber, carrier });
       await load();
     } catch (caught) {
       setError(apiError(caught));
@@ -159,7 +144,71 @@ export function OrdersPage() {
                 {order.deliveryMethod} delivery · {order.paymentStatus} ·{" "}
                 {order.paymentMethod}
               </p>
-              <div className="mt-4 flex gap-3">
+              {user?.role === "admin" &&
+                ["cancelled", "completed"].includes(order.status) && (
+                  <p className="mt-4 text-sm text-slate-500">
+                    This order is {order.status} and closed to changes. Its
+                    invoice and history remain available.
+                  </p>
+                )}
+              {user?.role === "admin" &&
+                editingId === order._id &&
+                NEXT[order.status] && (
+                  <EditPanel
+                    key={order._id}
+                    title={`Update order ${order.orderNumber}`}
+                    onCancel={() => setEditingId(null)}
+                    fields={[
+                      {
+                        name: "status",
+                        label: "Next status",
+                        value: NEXT[order.status]!,
+                        options: [
+                          {
+                            value: NEXT[order.status]!,
+                            label: NEXT[order.status]!,
+                          },
+                        ],
+                      },
+                      {
+                        name: "carrier",
+                        label: "Carrier",
+                        value: order.carrier ?? "",
+                        required: false,
+                      },
+                      {
+                        name: "trackingNumber",
+                        label: "Tracking number",
+                        value: order.trackingNumber ?? "",
+                        required: NEXT[order.status] === "shipped",
+                      },
+                      {
+                        name: "trackingUrl",
+                        label: "Tracking URL",
+                        value: order.trackingUrl ?? "",
+                        required: false,
+                      },
+                      {
+                        name: "fulfilmentNotes",
+                        label: "Fulfilment notes",
+                        value: order.fulfilmentNotes ?? "",
+                        type: "textarea",
+                        required: false,
+                      },
+                    ]}
+                    onSave={async (data) => {
+                      await updateOrderStatus(order._id, NEXT[order.status]!, {
+                        carrier: String(data.get("carrier")),
+                        trackingNumber: String(data.get("trackingNumber")),
+                        trackingUrl: String(data.get("trackingUrl")),
+                        fulfilmentNotes: String(data.get("fulfilmentNotes")),
+                      });
+                      setEditingId(null);
+                      await load();
+                    }}
+                  />
+                )}
+              <div className="mt-4 flex flex-wrap gap-3">
                 {["pending", "confirmed"].includes(order.status) && (
                   <button
                     onClick={() => void cancel(order._id)}
@@ -170,10 +219,10 @@ export function OrdersPage() {
                 )}
                 {user?.role === "admin" && NEXT[order.status] && (
                   <button
-                    onClick={() => void advance(order)}
+                    onClick={() => setEditingId(order._id)}
                     className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white"
                   >
-                    Move to {NEXT[order.status]}
+                    Update order
                   </button>
                 )}
                 <button

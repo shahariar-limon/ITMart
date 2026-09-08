@@ -24,6 +24,7 @@ import { FutureFeaturesPage } from "../features/future/FutureFeaturesPage";
 import { LandingPage } from "./LandingPage";
 import { SupportPage } from "../features/support/SupportPage";
 import { PaymentResultPage } from "../features/commerce/PaymentResultPage";
+import { AdminUsersPage } from "../features/users/AdminUsersPage";
 
 function Header() {
   const { user, signOut } = useAuth();
@@ -59,6 +60,7 @@ function Header() {
               { to: "/admin/catalog", label: "Admin catalog" },
               { to: "/admin/services", label: "Manage services" },
               { to: "/admin/bundles", label: "Manage bundles" },
+              { to: "/admin/users", label: "Users" },
               { to: "/admin/reports", label: "Reports" },
               { to: "/admin/operations", label: "Operations" },
             ]
@@ -164,6 +166,29 @@ function Header() {
           </span>
         </button>
       </nav>
+      {user?.role === "admin" && (
+        <nav
+          aria-label="Admin navigation"
+          className="border-t border-slate-100 bg-slate-50"
+        >
+          <div className="mx-auto flex max-w-7xl flex-wrap gap-1 px-4 py-2">
+            {[
+              { to: "/dashboard", label: "Admin dashboard" },
+              { to: "/admin/catalog", label: "Manage products" },
+              { to: "/admin/services", label: "Manage services" },
+              { to: "/admin/bundles", label: "Manage bundles" },
+              { to: "/orders", label: "Manage orders" },
+              { to: "/bookings", label: "Manage bookings" },
+              { to: "/admin/users", label: "Users" },
+              { to: "/admin/reports", label: "Reports" },
+            ].map((link) => (
+              <NavLink key={link.to} to={link.to} className={navClass}>
+                {link.label}
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+      )}
       {open && (
         <div
           id="mobile-navigation"
@@ -365,6 +390,14 @@ export function App() {
           element={
             <ProtectedRoute roles={["admin"]}>
               <AdminServicesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <AdminUsersPage />
             </ProtectedRoute>
           }
         />

@@ -13,7 +13,7 @@ const fields = {
 
 export const createServiceSchema = z.object(fields).strict();
 export const updateServiceSchema = z
-  .object(fields)
+  .object({ ...fields, isActive: fields.isActive.removeDefault() })
   .partial()
   .strict()
   .refine((value) => Object.keys(value).length > 0);

@@ -151,9 +151,10 @@ export function BookingsPage() {
                     <select
                       aria-label={`Assign technician for ${booking.bookingNumber}`}
                       defaultValue={
+                        booking.technicianId &&
                         typeof booking.technicianId === "object"
                           ? booking.technicianId._id
-                          : ""
+                          : (booking.technicianId ?? "")
                       }
                       onChange={(event) =>
                         void assign(booking._id, event.target.value)
@@ -181,7 +182,7 @@ export function BookingsPage() {
                       />
                     </label>
                   )}
-                {user?.role === "technician" &&
+                {(user?.role === "technician" || user?.role === "admin") &&
                   booking.status === "scheduled" && (
                     <button
                       onClick={() => void status(booking._id, "in_progress")}
@@ -190,7 +191,7 @@ export function BookingsPage() {
                       Start work
                     </button>
                   )}
-                {user?.role === "technician" &&
+                {(user?.role === "technician" || user?.role === "admin") &&
                   booking.status === "in_progress" && (
                     <button
                       onClick={() => void status(booking._id, "completed")}

@@ -30,7 +30,7 @@ export type Booking = {
   serviceNameSnapshot: string;
   basePriceSnapshot: number;
   durationMinutesSnapshot: number;
-  technicianId?: Technician | string;
+  technicianId?: Technician | string | null;
   status: BookingStatus;
   preferredStart?: string;
   scheduledStart?: string;

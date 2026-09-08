@@ -3,6 +3,22 @@ import { prisma } from "../../config/prisma.js";
 import { z } from "zod";
 import { objectIdSchema } from "../../shared/object-id.js";
 import { AppError } from "../../shared/app-error.js";
+import * as service from "./user.service.js";
+import { userListSchema, updateUserSchema } from "./user.validation.js";
+
+export async function listUsers(request: Request, response: Response) {
+  const { users, meta } = await service.listUsers(
+    userListSchema.parse(request.query),
+  );
+  response.json({ success: true, data: { users }, meta });
+}
+export async function updateUser(request: Request, response: Response) {
+  const user = await service.updateUser(
+    objectIdSchema.parse(request.params.userId),
+    updateUserSchema.parse(request.body),
+  );
+  response.json({ success: true, data: { user } });
+}
 
 export async function listTechnicians(
   _request: Request,

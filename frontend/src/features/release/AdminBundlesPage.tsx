@@ -4,9 +4,16 @@ import type { Product } from "../commerce/types";
 import { apiError, money, Notice } from "../commerce/ui";
 import { getServices } from "../services/services-api";
 import type { Service } from "../services/types";
-import { createBundle, getBundles } from "./release-api";
+import {
+  createBundle,
+  getBundles,
+  updateBundle,
+  archiveBundle,
+} from "./release-api";
+import { EditPanel } from "../commerce/EditPanel";
 import type { Bundle } from "./types";
 export function AdminBundlesPage() {
+  const [editing, setEditing] = useState<Bundle | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [bundles, setBundles] = useState<Bundle[]>([]);
@@ -113,6 +120,40 @@ export function AdminBundlesPage() {
           Create bundle
         </button>
       </form>
+      {editing && (
+        <EditPanel
+          key={editing._id}
+          title={`Edit bundle: ${editing.name}`}
+          onCancel={() => setEditing(null)}
+          fields={[
+            { name: "name", label: "Bundle name", value: editing.name },
+            {
+              name: "description",
+              label: "Description",
+              value: editing.description,
+              type: "textarea",
+            },
+            {
+              name: "bundlePrice",
+              label: "Bundle price (BDT)",
+              value: editing.bundlePrice / 100,
+              type: "number",
+              min: 0,
+              step: "0.01",
+            },
+          ]}
+          onSave={async (data) => {
+            await updateBundle(editing._id, {
+              name: String(data.get("name")),
+              description: String(data.get("description")),
+              bundlePrice: Math.round(Number(data.get("bundlePrice")) * 100),
+            });
+            setEditing(null);
+            setMessage("Bundle updated.");
+            await load();
+          }}
+        />
+      )}
       <section className="mt-8 grid gap-4 md:grid-cols-2">
         {bundles.map((bundle) => (
           <article
@@ -122,6 +163,23 @@ export function AdminBundlesPage() {
             <h2 className="text-xl font-bold">{bundle.name}</h2>
             <p className="mt-2 text-slate-600">{bundle.description}</p>
             <p className="mt-3 font-black">{money(bundle.bundlePrice)}</p>
+            <button
+              onClick={() => setEditing(bundle)}
+              className="mr-4 mt-4 font-semibold text-brand"
+            >
+              Edit
+            </button>
+            <button
+              className="mt-4 font-semibold text-red-700"
+              onClick={() => {
+                if (!window.confirm("Archive this bundle?")) return;
+                void archiveBundle(bundle._id)
+                  .then(load)
+                  .catch((caught) => setError(apiError(caught)));
+              }}
+            >
+              Archive
+            </button>
           </article>
         ))}
       </section>

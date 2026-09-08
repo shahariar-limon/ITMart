@@ -27,7 +27,12 @@ export const createBundleSchema = z
   .strict()
   .refine(hasComponent, "Bundle requires at least one component");
 export const updateBundleSchema = z
-  .object(fields)
+  .object({
+    ...fields,
+    productItems: fields.productItems.removeDefault(),
+    serviceIds: fields.serviceIds.removeDefault(),
+    isActive: fields.isActive.removeDefault(),
+  })
   .partial()
   .strict()
   .refine((value) => Object.keys(value).length > 0);

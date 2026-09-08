@@ -2,8 +2,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { apiError, money, Notice } from "../commerce/ui";
 import { createService, getServices, updateService } from "./services-api";
 import type { Service } from "./types";
+import { EditPanel } from "../commerce/EditPanel";
 
 export function AdminServicesPage() {
+  const [editing, setEditing] = useState<Service | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -113,6 +115,64 @@ export function AdminServicesPage() {
           Create service
         </button>
       </form>
+      {editing && (
+        <EditPanel
+          key={editing._id}
+          title={`Edit service: ${editing.name}`}
+          onCancel={() => setEditing(null)}
+          fields={[
+            { name: "name", label: "Service name", value: editing.name },
+            { name: "category", label: "Category", value: editing.category },
+            {
+              name: "description",
+              label: "Description",
+              value: editing.description,
+              type: "textarea",
+            },
+            {
+              name: "priceModel",
+              label: "Pricing model",
+              value: editing.priceModel,
+              options: [
+                { value: "fixed", label: "Fixed price" },
+                { value: "starting_at", label: "Starting at" },
+                { value: "quote", label: "Quote" },
+              ],
+            },
+            {
+              name: "basePrice",
+              label: "Price (BDT)",
+              value: editing.basePrice / 100,
+              type: "number",
+              min: 0,
+              step: "0.01",
+            },
+            {
+              name: "durationMinutes",
+              label: "Duration (minutes)",
+              value: editing.durationMinutes,
+              type: "number",
+              min: 15,
+              max: 1440,
+            },
+          ]}
+          onSave={async (data) => {
+            await updateService(editing._id, {
+              name: String(data.get("name")),
+              category: String(data.get("category")),
+              description: String(data.get("description")),
+              priceModel: String(
+                data.get("priceModel"),
+              ) as Service["priceModel"],
+              basePrice: Math.round(Number(data.get("basePrice")) * 100),
+              durationMinutes: Number(data.get("durationMinutes")),
+            });
+            setEditing(null);
+            setMessage("Service updated.");
+            await load();
+          }}
+        />
+      )}
       <section className="mt-8 grid gap-4 md:grid-cols-2">
         {services.map((service) => (
           <article
@@ -126,6 +186,12 @@ export function AdminServicesPage() {
             <p className="mt-2 text-sm text-slate-600">
               {service.durationMinutes} minutes · {money(service.basePrice)}
             </p>
+            <button
+              onClick={() => setEditing(service)}
+              className="mr-4 mt-4 font-semibold text-brand"
+            >
+              Edit
+            </button>
             <button
               onClick={() => void archive(service)}
               className="mt-4 font-semibold text-red-700"
