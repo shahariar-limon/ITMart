@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { getProduct } from "../commerce/commerce-api";
 import type { Product } from "../commerce/types";
 import { apiError, Loading, money, Notice } from "../commerce/ui";
@@ -37,6 +37,11 @@ export function ComparePage() {
   return (
     <main className="mx-auto max-w-6xl overflow-x-auto px-4 py-12">
       <h1 className="text-4xl font-black">Product comparison</h1>
+      <p className="mt-3 max-w-3xl text-slate-600">
+        Use this table when choosing between similar products. It places price,
+        stock, brand, and technical specifications next to each other. When you
+        decide, open that product and add it to your cart.
+      </p>
       <table className="mt-8 w-full min-w-[700px] overflow-hidden rounded-2xl bg-white text-left shadow-sm">
         <thead>
           <tr>
@@ -72,6 +77,9 @@ export function ComparePage() {
           ))}
         </tbody>
       </table>
+      <Link to="/products" className="mt-6 inline-block font-bold text-brand">
+        ← Back to products
+      </Link>
     </main>
   );
 }

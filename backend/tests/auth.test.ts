@@ -1,25 +1,21 @@
-import mongoose from "mongoose";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
-import { UserModel } from "../src/modules/users/user.model.js";
+import { prisma } from "../src/config/prisma.js";
+import { resetDb } from "./helpers/db.js";
 
 const app = createApp();
-let mongo: MongoMemoryServer;
 
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
-  await mongoose.connect(mongo.getUri());
+  await prisma.$connect();
 });
 
 beforeEach(async () => {
-  await UserModel.deleteMany({});
+  await resetDb();
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongo.stop();
+  await prisma.$disconnect();
 });
 
 describe("authentication", () => {
@@ -49,7 +45,7 @@ describe("authentication", () => {
       .send({ ...validUser, role: "admin" });
 
     expect(response.status).toBe(422);
-    expect(await UserModel.countDocuments()).toBe(0);
+    expect(await prisma.user.count()).toBe(0);
   });
 
   it("rejects duplicate email addresses", async () => {

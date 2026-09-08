@@ -13,7 +13,8 @@ playwright-report/
 # Local environment files and secrets
 .env
 .env.*
-!.env.example
+.env.example
+**/.env.example
 *.pem
 *.key
 
@@ -57,12 +58,20 @@ temp/
 *.orig
 
 # Prisma migrations are source-controlled. Ignore only transient local databases.
+backend/src/generated/
 *.db
 *.db-journal
 *.sqlite
 *.sqlite-journal
-.plan.md
-.AGENTS.md
-.Codex_Build_Guide.md
-.Improved_Project_Plan.md
-.PROJECT_STATUS_AND_DIAGRAM_PROMPTS.md
+# Local/redundant planning documents. Keep README.md, Plan.md, AGENTS.md, and
+# docs/ tracked because they are project and deployment documentation.
+Codex_Build_Guide.md
+Improved_Project_Plan.md
+PROJECT_STATUS_AND_DIAGRAM_PROMPTS.md
+INDUSTRY_FEATURE_ROADMAP.md
+plan.md
+AGENTS.md
+Codex_Build_Guide.md
+Improved_Project_Plan.md
+PROJECT_STATUS_AND_DIAGRAM_PROMPTS.md
+

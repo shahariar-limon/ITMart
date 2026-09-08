@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../backend/src/generated/prisma-client"
 }
 
 datasource db {
@@ -42,11 +43,50 @@ enum OrderStatus {
 enum PaymentMethod {
   cod
   simulated
+  bkash
 }
 
 enum PaymentStatus {
   unpaid
   authorized
+  paid
+  failed
+  refunded
+}
+
+enum DeliveryMethod {
+  standard
+  express
+  pickup
+}
+
+enum ReturnStatus {
+  requested
+  approved
+  rejected
+  received
+  refunded
+}
+
+enum OutboxStatus {
+  pending
+  sent
+  failed
+}
+
+enum SupportPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum SupportStatus {
+  open
+  in_progress
+  waiting_customer
+  resolved
+  closed
 }
 
 enum BookingStatus {
@@ -88,8 +128,56 @@ model User {
   solutions           SolutionRequest[]
   orderChanges        OrderStatusHistory[]
   bookingChanges      BookingStatusHistory[]
+  auditLogs           AuditLog[]             @relation("auditActor")
+  returnRequests      ReturnRequest[]
+  supportTickets      SupportTicket[]       @relation("ticketCustomer")
+  assignedTickets     SupportTicket[]       @relation("ticketAssignee")
+  supportReplies      SupportReply[]
 
   @@index([role, isActive])
+}
+
+model SupportTicket {
+  id           String          @id @default(uuid()) @db.Uuid
+  ticketNumber String          @unique
+  customerId   String          @db.Uuid
+  assigneeId   String?         @db.Uuid
+  productId    String?         @db.Uuid
+  orderId      String?         @db.Uuid
+  bookingId    String?         @db.Uuid
+  subject      String
+  description  String
+  priority     SupportPriority @default(normal)
+  status       SupportStatus   @default(open)
+  firstResponseAt DateTime?
+  resolvedAt   DateTime?
+  closedAt     DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  customer     User            @relation("ticketCustomer", fields: [customerId], references: [id])
+  assignee     User?           @relation("ticketAssignee", fields: [assigneeId], references: [id])
+  product      Product?        @relation(fields: [productId], references: [id])
+  order        Order?          @relation(fields: [orderId], references: [id])
+  booking      ServiceBooking? @relation(fields: [bookingId], references: [id])
+  replies      SupportReply[]
+
+  @@index([customerId, createdAt])
+  @@index([productId])
+  @@index([assigneeId, status])
+  @@index([status, priority, createdAt])
+}
+
+model SupportReply {
+  id           String        @id @default(uuid()) @db.Uuid
+  ticketId     String        @db.Uuid
+  authorId     String        @db.Uuid
+  message      String
+  internal     Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  ticket       SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author       User          @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId, createdAt])
 }
 
 model Category {
@@ -127,6 +215,7 @@ model Product {
   reviews     Review[]
   wishlists   WishlistProduct[]
   quoteItems  SolutionQuoteProduct[]
+  supportTickets SupportTicket[]
 
   @@index([categoryId])
   @@index([brand])
@@ -232,6 +321,17 @@ model Order {
   paymentReference    String?
   status              OrderStatus          @default(pending)
   shippingAddress     String
+  deliveryMethod      DeliveryMethod       @default(standard)
+  deliveryFee         Int                  @default(0)
+  idempotencyKey      String               @unique
+  carrier             String?
+  trackingNumber      String?
+  trackingUrl         String?
+  fulfilmentNotes     String               @default("")
+  packedAt            DateTime?
+  shippedAt           DateTime?
+  deliveredAt         DateTime?
+  cancellationReason  String?
   inventoryRestoredAt DateTime?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -239,9 +339,79 @@ model Order {
   bundleItems         OrderBundleItem[]
   statusHistory       OrderStatusHistory[]
   solution            SolutionRequest?
+  paymentAttempts     PaymentAttempt[]
+  returnRequests      ReturnRequest[]
+  supportTickets      SupportTicket[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+}
+
+model PaymentAttempt {
+  id                String        @id @default(uuid()) @db.Uuid
+  orderId           String        @db.Uuid
+  provider          String
+  providerReference String        @unique
+  amount            Int
+  currency          String        @default("BDT")
+  status            PaymentStatus
+  metadata          Json          @default("{}")
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  order             Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+}
+
+model ReturnRequest {
+  id         String       @id @default(uuid()) @db.Uuid
+  orderId    String       @db.Uuid
+  userId     String       @db.Uuid
+  reason     String
+  status     ReturnStatus @default(requested)
+  adminNotes String       @default("")
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  order      Order        @relation(fields: [orderId], references: [id])
+  user       User         @relation(fields: [userId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@index([status, createdAt])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  actorId      String?  @db.Uuid
+  action       String
+  resourceType String
+  resourceId   String
+  requestId    String?
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now())
+  actor        User?    @relation("auditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([resourceType, resourceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
+
+model OutboxMessage {
+  id            String       @id @default(uuid()) @db.Uuid
+  recipientId   String       @db.Uuid
+  channel       String       @default("email")
+  template      String
+  subject       String
+  payload       Json
+  status        OutboxStatus @default(pending)
+  attempts      Int          @default(0)
+  lastError     String?
+  nextAttemptAt DateTime     @default(now())
+  sentAt        DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([recipientId, createdAt])
 }
 
 model OrderItem {
@@ -316,6 +486,7 @@ model ServiceBooking {
   technician              User?                  @relation("technicianBookings", fields: [technicianId], references: [id])
   service                 Service                @relation(fields: [serviceId], references: [id])
   statusHistory           BookingStatusHistory[]
+  supportTickets          SupportTicket[]
 
   @@index([userId, createdAt])
   @@index([technicianId, status, scheduledStart, scheduledEnd])

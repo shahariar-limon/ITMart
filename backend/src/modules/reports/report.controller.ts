@@ -1,8 +1,6 @@
 import type { Request, Response } from "express";
-import { ServiceBookingModel } from "../bookings/booking.model.js";
-import { OrderModel } from "../orders/order.model.js";
-
-function csvCell(value: unknown): string {
+import { prisma } from "../../config/prisma.js";
+function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 function sendCsv(
@@ -10,110 +8,92 @@ function sendCsv(
   filename: string,
   headers: string[],
   rows: unknown[][],
-): void {
-  const body = [headers, ...rows]
-    .map((row) => row.map(csvCell).join(","))
-    .join("\r\n");
+) {
   response.setHeader("content-type", "text/csv; charset=utf-8");
   response.setHeader(
     "content-disposition",
     `attachment; filename="${filename}"`,
   );
-  response.send(`\uFEFF${body}`);
+  response.send(
+    `\uFEFF${[headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`,
+  );
 }
-
-export async function summary(
-  _request: Request,
-  response: Response,
-): Promise<void> {
-  const [topProducts, salesByMonth, servicesByStatus, topServices] =
-    await Promise.all([
-      OrderModel.aggregate([
-        { $match: { status: { $ne: "cancelled" } } },
-        { $unwind: "$items" },
-        {
-          $group: {
-            _id: "$items.productId",
-            name: { $first: "$items.nameSnapshot" },
-            units: { $sum: "$items.quantity" },
-            revenue: { $sum: "$items.lineTotal" },
-          },
-        },
-        { $sort: { revenue: -1 } },
-        { $limit: 10 },
-        {
-          $project: {
-            _id: 0,
-            productId: "$_id",
-            name: 1,
-            units: 1,
-            revenue: 1,
-          },
-        },
-      ]),
-      OrderModel.aggregate([
-        { $match: { status: { $ne: "cancelled" } } },
-        {
-          $group: {
-            _id: {
-              $dateToString: {
-                format: "%Y-%m",
-                date: "$createdAt",
-                timezone: "UTC",
-              },
-            },
-            orders: { $sum: 1 },
-            revenue: { $sum: "$grandTotal" },
-          },
-        },
-        { $sort: { _id: 1 } },
-        { $project: { _id: 0, month: "$_id", orders: 1, revenue: 1 } },
-      ]),
-      ServiceBookingModel.aggregate([
-        { $group: { _id: "$status", count: { $sum: 1 } } },
-        { $project: { _id: 0, status: "$_id", count: 1 } },
-        { $sort: { status: 1 } },
-      ]),
-      ServiceBookingModel.aggregate([
-        { $match: { status: "completed" } },
-        {
-          $group: {
-            _id: "$serviceId",
-            name: { $first: "$serviceNameSnapshot" },
-            completed: { $sum: 1 },
-            value: { $sum: "$basePriceSnapshot" },
-          },
-        },
-        { $sort: { completed: -1 } },
-        { $limit: 10 },
-        {
-          $project: {
-            _id: 0,
-            serviceId: "$_id",
-            name: 1,
-            completed: 1,
-            value: 1,
-          },
-        },
-      ]),
-    ]);
+export async function summary(_request: Request, response: Response) {
+  const [orders, bookings] = await Promise.all([
+    prisma.order.findMany({
+      where: { status: { not: "cancelled" } },
+      include: { items: true },
+    }),
+    prisma.serviceBooking.findMany(),
+  ]);
+  const productMap = new Map<
+    string,
+    { productId: string; name: string; units: number; revenue: number }
+  >();
+  const monthMap = new Map<
+    string,
+    { month: string; orders: number; revenue: number }
+  >();
+  for (const order of orders) {
+    const month = order.createdAt.toISOString().slice(0, 7);
+    const monthly = monthMap.get(month) ?? { month, orders: 0, revenue: 0 };
+    monthly.orders++;
+    monthly.revenue += order.grandTotal;
+    monthMap.set(month, monthly);
+    for (const item of order.items) {
+      const current = productMap.get(item.productId) ?? {
+        productId: item.productId,
+        name: item.nameSnapshot,
+        units: 0,
+        revenue: 0,
+      };
+      current.units += item.quantity;
+      current.revenue += item.lineTotal;
+      productMap.set(item.productId, current);
+    }
+  }
+  const statusMap = new Map<string, number>();
+  const serviceMap = new Map<
+    string,
+    { serviceId: string; name: string; completed: number; value: number }
+  >();
+  for (const booking of bookings) {
+    statusMap.set(booking.status, (statusMap.get(booking.status) ?? 0) + 1);
+    if (booking.status === "completed") {
+      const current = serviceMap.get(booking.serviceId) ?? {
+        serviceId: booking.serviceId,
+        name: booking.serviceNameSnapshot,
+        completed: 0,
+        value: 0,
+      };
+      current.completed++;
+      current.value += booking.basePriceSnapshot;
+      serviceMap.set(booking.serviceId, current);
+    }
+  }
   response.json({
     success: true,
     data: {
-      topProducts,
-      salesByMonth,
-      servicesByStatus,
-      topServices,
+      topProducts: [...productMap.values()]
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10),
+      salesByMonth: [...monthMap.values()].sort((a, b) =>
+        a.month.localeCompare(b.month),
+      ),
+      servicesByStatus: [...statusMap]
+        .map(([status, count]) => ({ status, count }))
+        .sort((a, b) => a.status.localeCompare(b.status)),
+      topServices: [...serviceMap.values()]
+        .sort((a, b) => b.completed - a.completed)
+        .slice(0, 10),
       timezone: "UTC",
     },
   });
 }
-
-export async function salesCsv(
-  _request: Request,
-  response: Response,
-): Promise<void> {
-  const orders = await OrderModel.find().sort({ createdAt: -1 }).lean();
+export async function salesCsv(_request: Request, response: Response) {
+  const orders = await prisma.order.findMany({
+    orderBy: { createdAt: "desc" },
+  });
   sendCsv(
     response,
     "sales-report.csv",
@@ -135,13 +115,10 @@ export async function salesCsv(
     ]),
   );
 }
-export async function servicesCsv(
-  _request: Request,
-  response: Response,
-): Promise<void> {
-  const bookings = await ServiceBookingModel.find()
-    .sort({ createdAt: -1 })
-    .lean();
+export async function servicesCsv(_request: Request, response: Response) {
+  const bookings = await prisma.serviceBooking.findMany({
+    orderBy: { createdAt: "desc" },
+  });
   sendCsv(
     response,
     "service-report.csv",

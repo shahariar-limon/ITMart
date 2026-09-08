@@ -1,15 +1,40 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
-import { getCategories, getProducts } from "./commerce-api";
+import { Link, useNavigate } from "react-router-dom";
+import { addCartItem, getCategories, getProducts } from "./commerce-api";
 import type { Category, Product } from "./types";
 import { apiError, Loading, money, Notice } from "./ui";
+import { ProductImage } from "./ProductImage";
+import { useAuth } from "../auth/auth-context";
 
 export function ProductListPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [addingId, setAddingId] = useState("");
+  const [addedIds, setAddedIds] = useState<string[]>([]);
+  async function add(productId: string) {
+    if (!user) {
+      navigate("/login", { state: { from: "/products" } });
+      return;
+    }
+    if (user.role !== "customer") return;
+    setAddingId(productId);
+    setError("");
+    try {
+      await addCartItem(productId);
+      setAddedIds((current) =>
+        current.includes(productId) ? current : [...current, productId],
+      );
+    } catch (caught) {
+      setError(apiError(caught));
+    } finally {
+      setAddingId("");
+    }
+  }
   async function load(params: Record<string, string> = {}) {
     setLoading(true);
     setError("");
@@ -83,8 +108,12 @@ export function ProductListPage() {
         </button>
       </form>
       {compareIds.length > 0 && (
-        <div className="mt-4 flex items-center gap-3 rounded-xl bg-emerald-50 p-3 text-sm">
-          <span>{compareIds.length} selected for comparison</span>
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 p-3 text-sm">
+          <span>
+            <strong>{compareIds.length} selected.</strong> Comparison shows
+            price and specifications side by side; it does not add products to
+            your cart.
+          </span>
           {compareIds.length >= 2 && (
             <Link
               to={`/compare?ids=${compareIds.join(",")}`}
@@ -113,8 +142,12 @@ export function ProductListPage() {
               key={product._id}
               className="overflow-hidden rounded-2xl border bg-white shadow-sm"
             >
-              <div className="grid h-44 place-items-center bg-slate-100 text-5xl">
-                ▦
+              <div className="h-52 overflow-hidden bg-slate-100">
+                <ProductImage
+                  urls={product.imageUrls}
+                  name={product.name}
+                  className="h-full w-full object-cover transition duration-500 hover:scale-105"
+                />
               </div>
               <div className="p-5">
                 <p className="text-xs font-semibold uppercase tracking-wider text-brand">
@@ -136,6 +169,38 @@ export function ProductListPage() {
                     ? `${product.stock} in stock`
                     : "Out of stock"}
                 </p>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {addedIds.includes(product._id) ? (
+                    <Link
+                      to="/cart"
+                      className="rounded-xl bg-slate-950 px-3 py-2.5 text-center text-sm font-bold text-white"
+                    >
+                      View cart
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => void add(product._id)}
+                      disabled={
+                        product.stock === 0 ||
+                        addingId === product._id ||
+                        (user !== null && user.role !== "customer")
+                      }
+                      className="rounded-xl bg-brand px-3 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {addingId === product._id
+                        ? "Adding…"
+                        : !user
+                          ? "Sign in to buy"
+                          : "Add to cart"}
+                    </button>
+                  )}
+                  <Link
+                    to={`/products/${product._id}`}
+                    className="rounded-xl border border-slate-200 px-3 py-2.5 text-center text-sm font-bold"
+                  >
+                    View details
+                  </Link>
+                </div>
                 <button
                   onClick={() =>
                     setCompareIds((current) =>
@@ -146,11 +211,11 @@ export function ProductListPage() {
                           : current,
                     )
                   }
-                  className="mt-3 text-sm font-semibold text-brand"
+                  className="mt-4 text-sm font-semibold text-slate-500 hover:text-brand"
                 >
                   {compareIds.includes(product._id)
-                    ? "Remove from comparison"
-                    : "Add to comparison"}
+                    ? "Remove from side-by-side comparison"
+                    : "Compare specifications"}
                 </button>
               </div>
             </article>

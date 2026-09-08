@@ -1,27 +1,22 @@
-import mongoose from "mongoose";
-import { MongoMemoryReplSet } from "mongodb-memory-server";
+import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
-import { UserModel } from "../src/modules/users/user.model.js";
-import { ProductModel } from "../src/modules/products/product.model.js";
-import { OrderModel } from "../src/modules/orders/order.model.js";
+import { prisma } from "../src/config/prisma.js";
+import { resetDb } from "./helpers/db.js";
 
 const app = createApp();
-let replicaSet: MongoMemoryReplSet;
 
 beforeAll(async () => {
-  replicaSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-  await mongoose.connect(replicaSet.getUri());
+  await prisma.$connect();
 });
 
 beforeEach(async () => {
-  await mongoose.connection.dropDatabase();
+  await resetDb();
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await replicaSet.stop();
+  await prisma.$disconnect();
 });
 
 async function account(email: string, role: "customer" | "admin" = "customer") {
@@ -33,7 +28,9 @@ async function account(email: string, role: "customer" | "admin" = "customer") {
       email,
       password,
     });
-  if (role === "admin") await UserModel.updateOne({ email }, { role });
+  if (role === "admin") {
+    await prisma.user.update({ where: { email }, data: { role } });
+  }
   const login = await request(app)
     .post("/api/v1/auth/login")
     .send({ email, password });
@@ -74,7 +71,7 @@ async function seedProduct(
       ...overrides,
     });
   expect(response.status).toBe(201);
-  return response.body.data.product as { _id: string; categoryId: string };
+  return response.body.data.product as { _id: string };
 }
 
 describe("catalog", () => {
@@ -118,7 +115,7 @@ describe("catalog", () => {
       .send({
         name: "Bad Product",
         sku: "BAD-1",
-        categoryId: new mongoose.Types.ObjectId().toString(),
+        categoryId: "00000000-0000-4000-8000-000000000000",
         brand: "Brand",
         description: "No category",
         price: 100,
@@ -146,13 +143,15 @@ describe("cart, checkout, and orders", () => {
       .send({
         shippingAddress: "12 Example Road, Dhaka",
         paymentMethod: "cod",
+        idempotencyKey: randomUUID(),
         total: 1,
       });
     expect(checkout.status).toBe(201);
     expect(checkout.body.data.order).toMatchObject({
       subtotal: 20_000,
       discountTotal: 2_000,
-      grandTotal: 18_000,
+      grandTotal: 18_080,
+      deliveryFee: 80,
       status: "pending",
     });
     expect(checkout.body.data.order.items[0]).toMatchObject({
@@ -160,7 +159,7 @@ describe("cart, checkout, and orders", () => {
       quantity: 2,
       lineTotal: 18_000,
     });
-    expect((await ProductModel.findById(product._id))?.stock).toBe(1);
+    expect((await prisma.product.findUnique({ where: { id: product._id } }))?.stock).toBe(1);
 
     const orderId = checkout.body.data.order._id as string;
     expect(
@@ -174,7 +173,7 @@ describe("cart, checkout, and orders", () => {
       .post(`/api/v1/orders/${orderId}/cancel`)
       .set("Authorization", `Bearer ${customer.token}`);
     expect(cancelled.status).toBe(200);
-    expect((await ProductModel.findById(product._id))?.stock).toBe(3);
+    expect((await prisma.product.findUnique({ where: { id: product._id } }))?.stock).toBe(3);
     expect(
       (
         await request(app)
@@ -182,7 +181,7 @@ describe("cart, checkout, and orders", () => {
           .set("Authorization", `Bearer ${customer.token}`)
       ).status,
     ).toBe(409);
-    expect((await ProductModel.findById(product._id))?.stock).toBe(3);
+    expect((await prisma.product.findUnique({ where: { id: product._id } }))?.stock).toBe(3);
   });
 
   it("prevents overselling during concurrent checkout", async () => {
@@ -204,15 +203,15 @@ describe("cart, checkout, and orders", () => {
       request(app)
         .post("/api/v1/orders")
         .set("Authorization", `Bearer ${first.token}`)
-        .send({ shippingAddress: "12 First Road, Dhaka" }),
+        .send({ shippingAddress: "12 First Road, Dhaka", idempotencyKey: randomUUID() }),
       request(app)
         .post("/api/v1/orders")
         .set("Authorization", `Bearer ${second.token}`)
-        .send({ shippingAddress: "34 Second Road, Dhaka" }),
+        .send({ shippingAddress: "34 Second Road, Dhaka", idempotencyKey: randomUUID() }),
     ]);
     expect(results.map((result) => result.status).sort()).toEqual([201, 409]);
-    expect((await ProductModel.findById(product._id))?.stock).toBe(0);
-    expect(await OrderModel.countDocuments()).toBe(1);
+    expect((await prisma.product.findUnique({ where: { id: product._id } }))?.stock).toBe(0);
+    expect(await prisma.order.count()).toBe(1);
   });
 
   it("rejects invalid status transitions", async () => {
@@ -226,7 +225,7 @@ describe("cart, checkout, and orders", () => {
     const checkout = await request(app)
       .post("/api/v1/orders")
       .set("Authorization", `Bearer ${customer.token}`)
-      .send({ shippingAddress: "45 Transition Road, Dhaka" });
+      .send({ shippingAddress: "45 Transition Road, Dhaka", idempotencyKey: randomUUID() });
     const response = await request(app)
       .patch(`/api/v1/orders/${checkout.body.data.order._id}/status`)
       .set("Authorization", `Bearer ${admin.token}`)

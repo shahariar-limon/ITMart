@@ -15,7 +15,6 @@
 | Notifications | Recipient isolation, read and read-all behavior |
 | Reports | Admin-only JSON and downloadable UTF-8 CSV |
 | Quotations | Ownership, Admin quote, expiry, accept/reject, transactional conversion |
-| Optional adapters | AI timeout fallback and simulated payment without card data |
+| Optional adapters | Simulated payment without card data |
 
 Before release, manually verify keyboard navigation, visible focus, mobile layout, loading/empty/error states, deployed CORS, deep links, and the two end-to-end journeys described in `Plan.md`.
-

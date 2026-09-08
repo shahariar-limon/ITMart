@@ -21,8 +21,6 @@ export function FutureFeaturesPage() {
   const [solutions, setSolutions] = useState<Solution[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [results, setResults] = useState<Product[]>([]);
-  const [source, setSource] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const load = useCallback(async () => {
@@ -92,20 +90,6 @@ export function FutureFeaturesPage() {
           : { decision },
       );
       await load();
-    } catch (caught) {
-      setError(apiError(caught));
-    }
-  }
-  async function search(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    try {
-      const response = await apiClient.post<
-        Envelope<{ products: Product[]; source: string }>
-      >("/search/assist", {
-        query: String(new FormData(event.currentTarget).get("query")),
-      });
-      setResults(response.data.data.products);
-      setSource(response.data.data.source);
     } catch (caught) {
       setError(apiError(caught));
     }
@@ -214,31 +198,6 @@ export function FutureFeaturesPage() {
             )}
           </article>
         ))}
-      </section>
-      <section className="mt-10 rounded-2xl bg-ink p-6 text-white">
-        <h2 className="text-xl font-bold">AI-assisted product search</h2>
-        <p className="mt-1 text-sm text-slate-300">
-          Automatically falls back to standard search if AI is unavailable.
-        </p>
-        <form onSubmit={search} className="mt-4 flex gap-2">
-          <input
-            required
-            name="query"
-            placeholder="Describe what you need"
-            className="flex-1 rounded-xl bg-white p-3 text-ink"
-          />
-          <button className="rounded-xl bg-brand px-4 font-semibold">
-            Search
-          </button>
-        </form>
-        {source && (
-          <p className="mt-3 text-xs text-slate-400">Result source: {source}</p>
-        )}
-        <ul className="mt-3">
-          {results.map((item) => (
-            <li key={item._id}>{item.name}</li>
-          ))}
-        </ul>
       </section>
     </main>
   );

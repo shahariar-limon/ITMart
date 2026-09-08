@@ -1,6 +1,5 @@
 import type { ErrorRequestHandler } from "express";
 import { ZodError } from "zod";
-import mongoose from "mongoose";
 import { env } from "../config/env.js";
 import { AppError } from "../shared/app-error.js";
 
@@ -18,14 +17,6 @@ export const errorHandler: ErrorRequestHandler = (
       "VALIDATION_ERROR",
       "Request validation failed",
       error.issues,
-    );
-  }
-
-  if (error instanceof mongoose.Error.CastError) {
-    normalized = new AppError(
-      422,
-      "INVALID_IDENTIFIER",
-      "A supplied identifier is invalid",
     );
   }
 

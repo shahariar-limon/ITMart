@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/auth-context";
 import { addWishlist, createReview, getReviews } from "../release/release-api";
 import type { Review } from "../release/types";
 import { addCartItem, getProduct } from "./commerce-api";
 import type { Product } from "./types";
 import { apiError, Loading, money, Notice } from "./ui";
+import { ProductImage } from "./ProductImage";
 
 export function ProductDetailPage() {
   const { productId = "" } = useParams();
@@ -28,6 +29,10 @@ export function ProductDetailPage() {
   function requireCustomer(): boolean {
     if (!user) {
       navigate("/login", { state: { from: `/products/${productId}` } });
+      return false;
+    }
+    if (user.role !== "customer") {
+      navigate("/forbidden");
       return false;
     }
     return true;
@@ -82,8 +87,12 @@ export function ProductDetailPage() {
   if (!product) return <Loading />;
   return (
     <main className="mx-auto grid max-w-6xl gap-10 px-4 py-12 md:grid-cols-2">
-      <div className="grid min-h-80 place-items-center rounded-3xl bg-slate-100 text-3xl font-black text-slate-300">
-        PRODUCT
+      <div className="min-h-80 overflow-hidden rounded-3xl bg-slate-100">
+        <ProductImage
+          urls={product.imageUrls}
+          name={product.name}
+          className="h-full min-h-80 w-full object-cover"
+        />
       </div>
       <section>
         <p className="font-semibold uppercase tracking-widest text-brand">
@@ -103,8 +112,16 @@ export function ProductDetailPage() {
           </div>
         )}
         {message && (
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <Notice message={message} tone="success" />
+            {message.includes("cart") && (
+              <Link
+                to="/cart"
+                className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white"
+              >
+                Go to cart & checkout →
+              </Link>
+            )}
           </div>
         )}
         <button

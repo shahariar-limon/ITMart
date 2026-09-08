@@ -83,28 +83,58 @@ export async function removeBundleCartItem(bundleId: string) {
 }
 export async function checkout(
   shippingAddress: string,
-  paymentMethod: "cod" | "simulated" = "cod",
+  paymentMethod: "cod" | "simulated" | "bkash" = "cod",
+  deliveryMethod: "standard" | "express" | "pickup" = "standard",
+  idempotencyKey = crypto.randomUUID(),
 ) {
   return (
-    await apiClient.post<Envelope<{ order: Order }>>("/orders", {
+    await apiClient.post<Envelope<{ order: Order; paymentUrl?: string }>>("/orders", {
       shippingAddress,
       paymentMethod,
+      deliveryMethod,
+      idempotencyKey,
     })
-  ).data.data.order;
+  ).data.data;
 }
 export async function getOrders() {
   return (await apiClient.get<Envelope<{ orders: Order[] }>>("/orders")).data
     .data.orders;
 }
-export async function cancelOrder(id: string) {
+export async function cancelOrder(id: string, reason = "Cancelled by user") {
   return (
-    await apiClient.post<Envelope<{ order: Order }>>(`/orders/${id}/cancel`)
+    await apiClient.post<Envelope<{ order: Order }>>(`/orders/${id}/cancel`, {
+      reason,
+    })
   ).data.data.order;
 }
-export async function updateOrderStatus(id: string, status: OrderStatus) {
+export async function updateOrderStatus(
+  id: string,
+  status: OrderStatus,
+  fulfilment: {
+    carrier?: string;
+    trackingNumber?: string;
+    trackingUrl?: string;
+    fulfilmentNotes?: string;
+  } = {},
+) {
   return (
     await apiClient.patch<Envelope<{ order: Order }>>(`/orders/${id}/status`, {
       status,
+      ...fulfilment,
     })
   ).data.data.order;
+}
+export async function requestReturn(id: string, reason: string) {
+  return (await apiClient.post(`/orders/${id}/returns`, { reason })).data;
+}
+export async function downloadInvoice(id: string, orderNumber: string) {
+  const result = await apiClient.get(`/orders/${id}/invoice`, {
+    responseType: "blob",
+  });
+  const url = URL.createObjectURL(result.data as Blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${orderNumber}.txt`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

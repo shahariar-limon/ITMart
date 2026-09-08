@@ -1,9 +1,8 @@
-import type { FilterQuery } from "mongoose";
 import type { Request, Response } from "express";
+import { prisma } from "../../config/prisma.js";
 import { AppError } from "../../shared/app-error.js";
 import { objectIdSchema } from "../../shared/object-id.js";
-import { ServiceBookingModel, type ServiceBooking } from "./booking.model.js";
-import * as bookingService from "./booking.service.js";
+import * as service from "./booking.service.js";
 import {
   assignBookingSchema,
   bookingListSchema,
@@ -11,7 +10,6 @@ import {
   scheduleBookingSchema,
   updateBookingStatusSchema,
 } from "./booking.validation.js";
-
 function actor(request: Request) {
   if (!request.user)
     throw new AppError(
@@ -21,46 +19,47 @@ function actor(request: Request) {
     );
   return request.user;
 }
-
-function scope(user: {
-  id: string;
-  role: string;
-}): FilterQuery<ServiceBooking> {
-  if (user.role === "admin") return {};
-  if (user.role === "technician") return { technicianId: user.id };
-  return { userId: user.id };
+function scope(user: { id: string; role: string }) {
+  return user.role === "admin"
+    ? {}
+    : user.role === "technician"
+      ? { technicianId: user.id }
+      : { userId: user.id };
 }
-
-export async function create(
-  request: Request,
-  response: Response,
-): Promise<void> {
+export async function create(request: Request, response: Response) {
   const user = actor(request);
-  const input = createBookingSchema.parse(request.body);
-  const booking = await bookingService.createBooking(user.id, input);
-  response.status(201).json({ success: true, data: { booking } });
+  const booking = await service.createBooking(
+    user.id,
+    createBookingSchema.parse(request.body),
+    request.requestId,
+  );
+  response
+    .status(201)
+    .json({
+      success: true,
+      data: { booking: service.serializeBooking(booking) },
+    });
 }
-
-export async function list(
-  request: Request,
-  response: Response,
-): Promise<void> {
+export async function list(request: Request, response: Response) {
   const user = actor(request);
   const query = bookingListSchema.parse(request.query);
-  const filter = scope(user);
-  if (query.status) filter.status = query.status;
+  const where = {
+    ...scope(user),
+    ...(query.status ? { status: query.status } : {}),
+  };
   const [bookings, totalItems] = await Promise.all([
-    ServiceBookingModel.find(filter)
-      .populate({ path: "technicianId", select: "name email role" })
-      .sort({ createdAt: -1 })
-      .skip((query.page - 1) * query.limit)
-      .limit(query.limit)
-      .lean(),
-    ServiceBookingModel.countDocuments(filter),
+    prisma.serviceBooking.findMany({
+      where,
+      include: service.bookingInclude,
+      orderBy: { createdAt: "desc" },
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    }),
+    prisma.serviceBooking.count({ where }),
   ]);
   response.json({
     success: true,
-    data: { bookings },
+    data: { bookings: bookings.map(service.serializeBooking) },
     meta: {
       page: query.page,
       limit: query.limit,
@@ -69,73 +68,65 @@ export async function list(
     },
   });
 }
-
-export async function detail(
-  request: Request,
-  response: Response,
-): Promise<void> {
+export async function detail(request: Request, response: Response) {
   const user = actor(request);
   const id = objectIdSchema.parse(request.params.bookingId);
-  const booking = await ServiceBookingModel.findOne({ _id: id, ...scope(user) })
-    .populate({ path: "technicianId", select: "name email role" })
-    .lean();
+  const booking = await prisma.serviceBooking.findFirst({
+    where: { id, ...scope(user) },
+    include: service.bookingInclude,
+  });
   if (!booking)
     throw new AppError(404, "BOOKING_NOT_FOUND", "Booking was not found");
-  response.json({ success: true, data: { booking } });
+  response.json({
+    success: true,
+    data: { booking: service.serializeBooking(booking) },
+  });
 }
-
-export async function assign(
-  request: Request,
-  response: Response,
-): Promise<void> {
+export async function assign(request: Request, response: Response) {
   const user = actor(request);
-  const id = objectIdSchema.parse(request.params.bookingId);
-  const input = assignBookingSchema.parse(request.body);
-  const booking = await bookingService.assignTechnician(
-    id,
-    input.technicianId,
+  const booking = await service.assignTechnician(
+    objectIdSchema.parse(request.params.bookingId),
+    assignBookingSchema.parse(request.body).technicianId,
     user.id,
   );
-  response.json({ success: true, data: { booking } });
+  response.json({
+    success: true,
+    data: { booking: service.serializeBooking(booking) },
+  });
 }
-
-export async function schedule(
-  request: Request,
-  response: Response,
-): Promise<void> {
+export async function schedule(request: Request, response: Response) {
   const user = actor(request);
-  const id = objectIdSchema.parse(request.params.bookingId);
-  const input = scheduleBookingSchema.parse(request.body);
-  const booking = await bookingService.scheduleBooking(
-    id,
-    input.scheduledStart,
+  const booking = await service.scheduleBooking(
+    objectIdSchema.parse(request.params.bookingId),
+    scheduleBookingSchema.parse(request.body).scheduledStart,
     user.id,
   );
-  response.json({ success: true, data: { booking } });
+  response.json({
+    success: true,
+    data: { booking: service.serializeBooking(booking) },
+  });
 }
-
-export async function updateStatus(
-  request: Request,
-  response: Response,
-): Promise<void> {
+export async function updateStatus(request: Request, response: Response) {
   const user = actor(request);
-  const id = objectIdSchema.parse(request.params.bookingId);
   const input = updateBookingStatusSchema.parse(request.body);
-  const booking = await bookingService.changeStatus(
-    id,
+  const booking = await service.changeStatus(
+    objectIdSchema.parse(request.params.bookingId),
     input.status,
     user,
     input.technicianNotes,
   );
-  response.json({ success: true, data: { booking } });
+  response.json({
+    success: true,
+    data: { booking: service.serializeBooking(booking) },
+  });
 }
-
-export async function cancel(
-  request: Request,
-  response: Response,
-): Promise<void> {
-  const user = actor(request);
-  const id = objectIdSchema.parse(request.params.bookingId);
-  const booking = await bookingService.cancelBooking(id, user);
-  response.json({ success: true, data: { booking } });
+export async function cancel(request: Request, response: Response) {
+  const booking = await service.cancelBooking(
+    objectIdSchema.parse(request.params.bookingId),
+    actor(request),
+  );
+  response.json({
+    success: true,
+    data: { booking: service.serializeBooking(booking) },
+  });
 }

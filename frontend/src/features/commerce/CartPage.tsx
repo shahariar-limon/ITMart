@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   checkout,
   getCart,
@@ -15,6 +15,10 @@ export function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "bkash">(
+    "cod",
+  );
+  const checkoutKey = useRef(crypto.randomUUID());
   const navigate = useNavigate();
   async function load() {
     try {
@@ -62,11 +66,17 @@ export function CartPage() {
     setError("");
     try {
       const data = new FormData(event.currentTarget);
-      const order = await checkout(
+      const result = await checkout(
         String(data.get("shippingAddress")),
-        String(data.get("paymentMethod")) as "cod" | "simulated",
+        String(data.get("paymentMethod")) as "cod" | "bkash",
+        String(data.get("deliveryMethod")) as "standard" | "express" | "pickup",
+        checkoutKey.current,
       );
-      navigate(`/orders?placed=${order.orderNumber}`);
+      if (result.paymentUrl) {
+        window.location.assign(result.paymentUrl);
+        return;
+      }
+      navigate(`/orders?placed=${result.order.orderNumber}`);
     } catch (caught) {
       setError(apiError(caught));
       await load();
@@ -101,9 +111,15 @@ export function CartPage() {
         </div>
       )}
       {cart.items.length === 0 && cart.bundleItems.length === 0 ? (
-        <p className="mt-10 rounded-2xl bg-white p-8 text-slate-500">
-          Your cart is empty.
-        </p>
+        <div className="mt-10 rounded-2xl bg-white p-8">
+          <p className="text-slate-500">Your cart is empty.</p>
+          <Link
+            to="/products"
+            className="mt-4 inline-block rounded-xl bg-brand px-5 py-3 font-bold text-white"
+          >
+            Browse products
+          </Link>
+        </div>
       ) : (
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
           <section className="space-y-4">
@@ -183,7 +199,7 @@ export function CartPage() {
           </section>
           <form
             onSubmit={submit}
-            className="h-fit rounded-2xl bg-ink p-6 text-white"
+            className="commerce-card h-fit rounded-2xl bg-ink p-6 text-white"
           >
             <h2 className="text-2xl font-bold">Checkout</h2>
             <div className="mt-4 flex justify-between">
@@ -201,21 +217,45 @@ export function CartPage() {
               />
             </label>
             <p className="mt-3 text-xs text-slate-400">
-              Payment method: Cash on delivery. Final price and stock are
-              verified when you place the order.
+              Final price and stock are verified when you place the order.
             </p>
+            <label className="mt-4 block text-sm font-medium">
+              Delivery
+              <select
+                name="deliveryMethod"
+                className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-800 p-3"
+              >
+                <option value="standard">Standard · BDT 80</option>
+                <option value="express">Express · BDT 180</option>
+                <option value="pickup">Store pickup · Free</option>
+              </select>
+            </label>
             <label className="mt-4 block text-sm font-medium">
               Payment method
               <select
                 name="paymentMethod"
+                value={paymentMethod}
+                onChange={(event) =>
+                  setPaymentMethod(
+                    event.target.value as "cod" | "bkash",
+                  )
+                }
                 className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-800 p-3"
               >
                 <option value="cod">Cash on delivery</option>
-                <option value="simulated">
-                  Simulated sandbox authorization
-                </option>
+                <option value="bkash">bKash sandbox</option>
               </select>
             </label>
+            <div className="mt-3 rounded-xl border border-slate-700 bg-slate-800/70 p-3 text-xs leading-5 text-slate-300">
+              {paymentMethod === "cod" ? (
+                <p>Pay in cash when your order is delivered.</p>
+              ) : (
+                <p>
+                  You will be redirected to the official bKash sandbox. Use a
+                  bKash test wallet; no real money is charged.
+                </p>
+              )}
+            </div>
             <button
               disabled={busy}
               className="mt-5 w-full rounded-xl bg-brand px-4 py-3 font-semibold disabled:opacity-50"

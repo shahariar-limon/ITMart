@@ -1,23 +1,17 @@
-import mongoose from "mongoose";
-import { MongoMemoryReplSet } from "mongodb-memory-server";
+import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
-import { ServiceBookingModel } from "../src/modules/bookings/booking.model.js";
-import { OrderModel } from "../src/modules/orders/order.model.js";
-import { ProductModel } from "../src/modules/products/product.model.js";
-import { UserModel } from "../src/modules/users/user.model.js";
+import { prisma } from "../src/config/prisma.js";
+import { resetDb } from "./helpers/db.js";
 
 const app = createApp();
-let replicaSet: MongoMemoryReplSet;
 beforeAll(async () => {
-  replicaSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-  await mongoose.connect(replicaSet.getUri());
+  await prisma.$connect();
 });
-beforeEach(async () => mongoose.connection.dropDatabase());
+beforeEach(async () => resetDb());
 afterAll(async () => {
-  await mongoose.disconnect();
-  await replicaSet.stop();
+  await prisma.$disconnect();
 });
 
 async function account(email: string, role: "customer" | "admin" = "customer") {
@@ -25,7 +19,9 @@ async function account(email: string, role: "customer" | "admin" = "customer") {
   await request(app)
     .post("/api/v1/auth/register")
     .send({ name: `${role} user`, email, password });
-  if (role === "admin") await UserModel.updateOne({ email }, { role });
+  if (role === "admin") {
+    await prisma.user.update({ where: { email }, data: { role } });
+  }
   const login = await request(app)
     .post("/api/v1/auth/login")
     .send({ email, password });
@@ -34,6 +30,7 @@ async function account(email: string, role: "customer" | "admin" = "customer") {
     id: login.body.data.user.id as string,
   };
 }
+
 async function catalog(adminToken: string) {
   const category = await request(app)
     .post("/api/v1/categories")
@@ -112,32 +109,32 @@ describe("dashboard and release modules", () => {
       .set("Authorization", `Bearer ${customer.token}`)
       .send({ rating: 5, text: "Excellent camera" });
     expect(denied.status).toBe(403);
-    await OrderModel.create({
-      orderNumber: "ITM-REVIEW-1",
-      userId: customer.id,
-      items: [
-        {
-          productId: product._id,
-          nameSnapshot: "IP Camera",
-          skuSnapshot: "CAM-1",
-          quantity: 1,
-          unitPrice: 10_000,
-          lineTotal: 10_000,
+    await prisma.order.create({
+      data: {
+        orderNumber: "ITM-REVIEW-1",
+        userId: customer.id,
+        subtotal: 12_000,
+        discountTotal: 2_000,
+        grandTotal: 10_000,
+        idempotencyKey: "itm-review-1",
+        shippingAddress: "12 Review Road, Dhaka",
+        status: "completed",
+        items: {
+          create: [
+            {
+              productId: product._id,
+              nameSnapshot: "IP Camera",
+              skuSnapshot: "CAM-1",
+              quantity: 1,
+              unitPrice: 10_000,
+              lineTotal: 10_000,
+            },
+          ],
         },
-      ],
-      subtotal: 12_000,
-      discountTotal: 2_000,
-      grandTotal: 10_000,
-      shippingAddress: "12 Review Road, Dhaka",
-      status: "completed",
-      statusHistory: [
-        {
-          from: "delivered",
-          to: "completed",
-          changedBy: admin.id,
-          changedAt: new Date(),
+        statusHistory: {
+          create: { from: "delivered", to: "completed", changedBy: admin.id },
         },
-      ],
+      },
     });
     const created = await request(app)
       .post(`/api/v1/products/${product._id}/reviews`)
@@ -182,15 +179,14 @@ describe("dashboard and release modules", () => {
     const checkout = await request(app)
       .post("/api/v1/orders")
       .set("Authorization", `Bearer ${customer.token}`)
-      .send({ shippingAddress: "12 Bundle Road, Dhaka" });
+      .send({ shippingAddress: "12 Bundle Road, Dhaka", idempotencyKey: randomUUID() });
     expect(checkout.status).toBe(201);
-    expect(checkout.body.data.order).toMatchObject({ grandTotal: 22_000 });
+    expect(checkout.body.data.order).toMatchObject({ grandTotal: 22_080 });
     expect(checkout.body.data.order.bundleItems).toHaveLength(1);
-    expect((await ProductModel.findById(product._id))?.stock).toBe(2);
+    expect((await prisma.product.findUnique({ where: { id: product._id } }))?.stock).toBe(2);
     expect(
-      await ServiceBookingModel.countDocuments({
-        userId: customer.id,
-        status: "requested",
+      await prisma.serviceBooking.count({
+        where: { userId: customer.id, status: "requested" },
       }),
     ).toBe(1);
     const notifications = await request(app)
@@ -203,7 +199,10 @@ describe("dashboard and release modules", () => {
     const admin = await account("business-admin@example.com", "admin");
     const customer = await account("business-customer@example.com");
     const { product } = await catalog(admin.token);
-    await ProductModel.updateOne({ _id: product._id }, { stock: 20 });
+    await prisma.product.update({
+      where: { id: product._id },
+      data: { stock: 20 },
+    });
     const upgraded = await request(app)
       .patch(`/api/v1/users/${customer.id}/business-account`)
       .set("Authorization", `Bearer ${admin.token}`)
@@ -219,26 +218,21 @@ describe("dashboard and release modules", () => {
       .send({
         shippingAddress: "12 Business Road, Dhaka",
         paymentMethod: "simulated",
+        idempotencyKey: randomUUID(),
       });
     expect(checkout.status).toBe(201);
     expect(checkout.body.data.order).toMatchObject({
-      grandTotal: 95_000,
+      grandTotal: 95_080,
       paymentStatus: "authorized",
       paymentMethod: "simulated",
     });
     expect(checkout.body.data.order.paymentReference).toMatch(/^SIM-/);
   });
 
-  it("falls back safely in assisted search and converts an accepted quote", async () => {
+  it("converts an accepted quote", async () => {
     const admin = await account("quote-admin@example.com", "admin");
     const customer = await account("quote-customer@example.com");
     const { product, service } = await catalog(admin.token);
-    await ProductModel.syncIndexes();
-    const search = await request(app)
-      .post("/api/v1/search/assist")
-      .send({ query: "camera" });
-    expect(search.status).toBe(200);
-    expect(search.body.data.source).toBe("fallback");
     const submitted = await request(app)
       .post("/api/v1/solutions")
       .set("Authorization", `Bearer ${customer.token}`)
@@ -267,9 +261,11 @@ describe("dashboard and release modules", () => {
       });
     expect(accepted.status).toBe(200);
     expect(accepted.body.data.order.grandTotal).toBe(15_000);
-    expect((await ProductModel.findById(product._id))?.stock).toBe(3);
+    expect((await prisma.product.findUnique({ where: { id: product._id } }))?.stock).toBe(3);
     expect(
-      await ServiceBookingModel.countDocuments({ userId: customer.id }),
+      await prisma.serviceBooking.count({
+        where: { userId: customer.id },
+      }),
     ).toBe(1);
   });
 });

@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
+import { prisma } from "../../config/prisma.js";
 import { AppError } from "../../shared/app-error.js";
 import { objectIdSchema } from "../../shared/object-id.js";
-import { NotificationModel } from "./notification.model.js";
 function userId(request: Request) {
   if (!request.user)
     throw new AppError(
@@ -11,48 +11,50 @@ function userId(request: Request) {
     );
   return request.user.id;
 }
-export async function list(
-  request: Request,
-  response: Response,
-): Promise<void> {
+const serialize = <T extends { id: string }>(item: T) => {
+  const { id, ...fields } = item;
+  return { _id: id, ...fields };
+};
+export async function list(request: Request, response: Response) {
   const id = userId(request);
-  const notifications = await NotificationModel.find({ recipientId: id })
-    .sort({ createdAt: -1 })
-    .limit(50)
-    .lean();
-  const unreadCount = await NotificationModel.countDocuments({
-    recipientId: id,
-    readAt: { $exists: false },
+  const [notifications, unreadCount] = await Promise.all([
+    prisma.notification.findMany({
+      where: { recipientId: id },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    prisma.notification.count({ where: { recipientId: id, readAt: null } }),
+  ]);
+  response.json({
+    success: true,
+    data: { notifications: notifications.map(serialize), unreadCount },
   });
-  response.json({ success: true, data: { notifications, unreadCount } });
 }
-export async function markRead(
-  request: Request,
-  response: Response,
-): Promise<void> {
-  const id = userId(request);
-  const notificationId = objectIdSchema.parse(request.params.notificationId);
-  const notification = await NotificationModel.findOneAndUpdate(
-    { _id: notificationId, recipientId: id },
-    { readAt: new Date() },
-    { new: true },
-  );
-  if (!notification)
+export async function markRead(request: Request, response: Response) {
+  const recipientId = userId(request);
+  const id = objectIdSchema.parse(request.params.notificationId);
+  const found = await prisma.notification.findFirst({
+    where: { id, recipientId },
+  });
+  if (!found)
     throw new AppError(
       404,
       "NOTIFICATION_NOT_FOUND",
       "Notification was not found",
     );
-  response.json({ success: true, data: { notification } });
+  const notification = await prisma.notification.update({
+    where: { id },
+    data: { readAt: new Date() },
+  });
+  response.json({
+    success: true,
+    data: { notification: serialize(notification) },
+  });
 }
-export async function markAllRead(
-  request: Request,
-  response: Response,
-): Promise<void> {
-  const id = userId(request);
-  await NotificationModel.updateMany(
-    { recipientId: id, readAt: { $exists: false } },
-    { readAt: new Date() },
-  );
+export async function markAllRead(request: Request, response: Response) {
+  await prisma.notification.updateMany({
+    where: { recipientId: userId(request), readAt: null },
+    data: { readAt: new Date() },
+  });
   response.status(204).send();
 }

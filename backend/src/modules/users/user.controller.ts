@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { UserModel } from "./user.model.js";
+import { prisma } from "../../config/prisma.js";
 import { z } from "zod";
 import { objectIdSchema } from "../../shared/object-id.js";
 import { AppError } from "../../shared/app-error.js";
@@ -8,14 +8,17 @@ export async function listTechnicians(
   _request: Request,
   response: Response,
 ): Promise<void> {
-  const technicians = await UserModel.find({
-    role: "technician",
-    isActive: true,
-  })
-    .select("name email role")
-    .sort({ name: 1 })
-    .lean();
-  response.json({ success: true, data: { technicians } });
+  const technicians = await prisma.user.findMany({
+    where: { role: "technician", isActive: true },
+    select: { id: true, name: true, email: true, role: true },
+    orderBy: { name: "asc" },
+  });
+  response.json({
+    success: true,
+    data: {
+      technicians: technicians.map(({ id, ...item }) => ({ _id: id, ...item })),
+    },
+  });
 }
 export async function updateBusinessAccount(
   request: Request,
@@ -29,12 +32,22 @@ export async function updateBusinessAccount(
     })
     .strict()
     .parse(request.body);
-  const user = await UserModel.findOneAndUpdate(
-    { _id: id, role: "customer" },
-    input,
-    { new: true, runValidators: true },
-  ).select("name email role accountType businessDiscountBps");
-  if (!user)
+  const existing = await prisma.user.findFirst({
+    where: { id, role: "customer" },
+  });
+  if (!existing)
     throw new AppError(404, "USER_NOT_FOUND", "Customer was not found");
-  response.json({ success: true, data: { user } });
+  const user = await prisma.user.update({
+    where: { id },
+    data: input,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      accountType: true,
+      businessDiscountBps: true,
+    },
+  });
+  response.json({ success: true, data: { user: { _id: user.id, ...user } } });
 }

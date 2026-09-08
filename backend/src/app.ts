@@ -19,8 +19,9 @@ import { reportRouter } from "./modules/reports/report.routes.js";
 import { reviewRouter } from "./modules/reviews/review.routes.js";
 import { wishlistRouter } from "./modules/wishlists/wishlist.routes.js";
 import { bundleRouter } from "./modules/bundles/bundle.routes.js";
-import { searchRouter } from "./modules/search/search.routes.js";
 import { solutionRouter } from "./modules/solutions/solution.routes.js";
+import { supportRouter } from "./modules/support/support.routes.js";
+import { paymentRouter } from "./modules/payments/payment.routes.js";
 
 export function createApp() {
   const app = express();
@@ -48,8 +49,9 @@ export function createApp() {
   app.use("/api/v1/notifications", notificationRouter);
   app.use("/api/v1/reports", reportRouter);
   app.use("/api/v1/bundles", bundleRouter);
-  app.use("/api/v1/search", searchRouter);
   app.use("/api/v1/solutions", solutionRouter);
+  app.use("/api/v1/support", supportRouter);
+  app.use("/api/v1/payments", paymentRouter);
 
   app.use(notFound);
   app.use(errorHandler);

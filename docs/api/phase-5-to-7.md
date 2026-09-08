@@ -9,7 +9,5 @@
 - `GET /reports/summary`, `/reports/sales.csv`, `/reports/services.csv` — Admin only.
 - `POST /solutions`, `GET /solutions`, `PATCH /solutions/:id/quote`, `POST /solutions/:id/decision`.
 - `PATCH /users/:userId/business-account` — Admin-controlled account type and discount basis points.
-- `POST /search/assist` — optional AI term expansion with standard-search fallback.
 
 Quote and bundle acceptance expands product components for inventory and verified-purchase history. Included services create requested service bookings. These writes and the order are committed in one MongoDB transaction.
-

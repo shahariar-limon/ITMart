@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { cancelOrder, getOrders, updateOrderStatus } from "./commerce-api";
+import {
+  cancelOrder,
+  downloadInvoice,
+  getOrders,
+  requestReturn,
+  updateOrderStatus,
+} from "./commerce-api";
 import type { Order, OrderStatus } from "./types";
 import { apiError, Loading, money, Notice } from "./ui";
 import { useAuth } from "../auth/auth-context";
@@ -39,7 +45,24 @@ export function OrdersPage() {
     const status = NEXT[order.status];
     if (!status) return;
     try {
-      await updateOrderStatus(order._id, status);
+      const trackingNumber =
+        status === "shipped"
+          ? (window.prompt("Tracking number (required)") ?? "")
+          : "";
+      if (status === "shipped" && !trackingNumber) return;
+      const carrier =
+        status === "shipped" ? (window.prompt("Carrier name") ?? "") : "";
+      await updateOrderStatus(order._id, status, { trackingNumber, carrier });
+      await load();
+    } catch (caught) {
+      setError(apiError(caught));
+    }
+  }
+  async function startReturn(order: Order) {
+    const reason = window.prompt("Tell us why you want to return this order");
+    if (!reason) return;
+    try {
+      await requestReturn(order._id, reason);
       await load();
     } catch (caught) {
       setError(apiError(caught));
@@ -81,7 +104,7 @@ export function OrdersPage() {
           orders.map((order) => (
             <article
               key={order._id}
-              className="rounded-2xl border bg-white p-6 shadow-sm"
+              className="commerce-card rounded-2xl border bg-white p-6 shadow-sm"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -103,6 +126,39 @@ export function OrdersPage() {
               <p className="mt-4 text-sm text-slate-500">
                 Deliver to: {order.shippingAddress}
               </p>
+              <div className="mt-5 border-l-2 border-emerald-100 pl-5">
+                {order.statusHistory.map((event) => (
+                  <div key={event.id} className="relative pb-4 last:pb-0">
+                    <span className="status-dot absolute -left-[1.44rem] top-1 h-2.5 w-2.5 rounded-full bg-brand" />
+                    <p className="text-sm font-bold capitalize">
+                      {event.to.replace("_", " ")}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {new Date(event.changedAt).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              {order.trackingNumber && (
+                <div className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm">
+                  <strong>{order.carrier || "Carrier"}</strong> ·{" "}
+                  {order.trackingNumber}
+                  {order.trackingUrl && (
+                    <a
+                      className="ml-2 font-bold text-brand"
+                      href={order.trackingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Track
+                    </a>
+                  )}
+                </div>
+              )}
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                {order.deliveryMethod} delivery · {order.paymentStatus} ·{" "}
+                {order.paymentMethod}
+              </p>
               <div className="mt-4 flex gap-3">
                 {["pending", "confirmed"].includes(order.status) && (
                   <button
@@ -120,6 +176,24 @@ export function OrdersPage() {
                     Move to {NEXT[order.status]}
                   </button>
                 )}
+                <button
+                  onClick={() =>
+                    void downloadInvoice(order._id, order.orderNumber)
+                  }
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold"
+                >
+                  Invoice
+                </button>
+                {user?.role === "customer" &&
+                  ["delivered", "completed"].includes(order.status) &&
+                  order.returnRequests.length === 0 && (
+                    <button
+                      onClick={() => void startReturn(order)}
+                      className="rounded-lg border border-amber-200 px-3 py-2 text-sm font-semibold text-amber-800"
+                    >
+                      Request return
+                    </button>
+                  )}
               </div>
             </article>
           ))

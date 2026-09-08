@@ -8,7 +8,7 @@
 ## Stack and layout
 
 - Use strict TypeScript throughout.
-- Backend: Node.js, Express, Mongoose, Zod, JWT, bcrypt.
+- Backend: Node.js, Express, Prisma (PostgreSQL/Neon), Zod, JWT, bcrypt.
 - Frontend: React, Vite, React Router, Axios, Tailwind CSS.
 - Keep backend code grouped by domain under `backend/src/modules/`.
 - Keep business rules in services; controllers translate HTTP input/output only.

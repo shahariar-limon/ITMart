@@ -38,7 +38,7 @@ Provide one role-based platform covering the complete journey:
 3. Prevent unauthorized access, invalid workflow transitions, and product overselling.
 4. Give administrators centralized operational control and useful summary metrics.
 5. Give technicians a restricted workspace for assigned jobs.
-6. Establish a maintainable foundation for bundles, quotations, business accounts, and optional AI capabilities.
+6. Establish a maintainable foundation for bundles, quotations, and business accounts.
 
 ### 1.4 Success measures
 
@@ -84,11 +84,19 @@ Implement in this order, stopping when time or quality constraints require it:
 
 ### 2.3 Future releases — Could have
 
-- Customized solution request and quotation workflow.
-- Business-account flag, bulk pricing, and purchase limits.
-- Real payment provider in sandbox mode behind a provider interface.
-- Optional AI-assisted search and recommendations with deterministic fallback.
-- PDF invoices, support tickets, audit history, email/SMS notifications.
+The approved post-MVP enhancement scope is intentionally limited to these nine capabilities from `INDUSTRY_FEATURE_ROADMAP.md`:
+
+1. **Feature 7 — Checkout and payment hardening:** saved address snapshots, delivery calculation, order idempotency, inventory reservation, sandbox payment integration, signed webhooks, reconciliation, invoices, and receipts.
+2. **Feature 8 — Order fulfilment workflow:** picking/packing, carrier tracking, customer timeline, cancellation reasons, controlled status rules, exact-once stock restoration, and basic return/RMA requests.
+3. **Feature 10 — Transactional communication:** queued email for account, order, booking, quotation, and low-stock events with delivery attempts and retries.
+4. **Feature 11 — Immutable audit log:** append-only records for sensitive account, price, inventory, order, booking, bundle, quotation, export, and administrative changes.
+5. **Feature 13 — Customer support workflow:** tickets linked to orders/products/bookings, assignment, priority, internal notes, attachments, replies, and response/resolution timestamps.
+6. **Feature 14 — Reviews and moderation:** verified-purchase reviews, moderation state/reason, rating distribution, pagination, abuse reports, and safe editing.
+7. **Feature 15 — Reporting and exports:** date/timezone controls, commercial and service KPIs, consistent definitions, asynchronous large exports, and export auditing.
+8. **Feature 16 — Promotions:** bounded coupons, eligibility, minimum spend, usage limits, server-side calculation, stacking rules, and order snapshots.
+9. **Feature 17 — Business purchasing:** organization membership, Buyer/Approver roles, purchase-order references, purchase limits, quotation conversion, shared order history, and statements.
+
+These are the only approved feature additions. Platform stabilization, PostgreSQL migration completion, security, automated testing, accessibility, observability, backup/restore, and deployment work remain mandatory engineering requirements rather than optional product features.
 
 ### 2.4 Explicitly out of scope for MVP
 
@@ -99,7 +107,8 @@ Implement in this order, stopping when time or quality constraints require it:
 - Recurring billing, refunds, returns, or real payment settlement.
 - Live technician geolocation or route optimization.
 - A separate business-customer portal.
-- AI as a dependency of any core workflow.
+
+The following roadmap proposals are also excluded from the approved post-MVP scope: catalog expansion (Feature 5), enhanced PostgreSQL discovery (Feature 6), professional scheduling expansion (Feature 9), inventory-ledger expansion (Feature 12), saved/recurring operational needs (Feature 18), and product-facing feature flags (Feature 19). Existing catalog, search, scheduling, and inventory behavior may still receive defect fixes required for correctness.
 
 ### 2.5 Change control
 
@@ -163,7 +172,7 @@ Authorization is always enforced server-side. Frontend route guards improve user
 ### FR-05 Checkout, orders, and inventory
 
 - The API ignores any client-supplied total or authoritative unit price.
-- Checkout re-reads current products, validates active status and stock, snapshots product name/SKU/unit price, calculates totals, creates the order, and decrements stock within one MongoDB transaction.
+- Checkout re-reads current products, validates active status and stock, snapshots product name/SKU/unit price, calculates totals, creates the order, and decrements stock within one PostgreSQL transaction.
 - Concurrent checkouts must use a conditional stock update so inventory can never become negative.
 - A stock conflict returns `409 Conflict`; no partial order or inventory mutation remains.
 - A successfully placed order starts as `Pending` and clears the purchased cart items.
@@ -224,7 +233,7 @@ Only Admin can assign or reschedule. Admin and the assigned Technician may advan
 - Store secrets only in environment variables or deployment secret stores; commit `.env.example`, never `.env`.
 - Use least-privilege database and cloud-storage credentials.
 - Do not expose production stack traces or internal database errors.
-- Validate MongoDB identifiers and prevent operator injection/mass assignment by allowlisting write fields.
+- Validate identifiers and prevent operator injection/mass assignment by allowlisting write fields.
 - Define token expiry. For MVP, store the JWT consistently and document the XSS/CSRF trade-off; prefer secure, HttpOnly, SameSite cookies if frontend and API deployment topology supports them.
 - Run dependency and secret scanning before release.
 
@@ -238,7 +247,7 @@ Only Admin can assign or reschedule. Admin and the assigned Technician may advan
 
 ### 5.3 Reliability and data integrity
 
-- Use MongoDB transactions for checkout and inventory-restoring cancellation; deployment must use a replica set or Atlas configuration that supports transactions.
+- Use PostgreSQL transactions for checkout and inventory-restoring cancellation; deployment must use a Neon (or PostgreSQL) connection that supports transactions.
 - Make inventory restoration idempotent through transition validation and transaction boundaries.
 - Validate configuration and fail fast at application startup when required variables are absent.
 - Provide graceful shutdown and a health endpoint.
@@ -271,7 +280,7 @@ Only Admin can assign or reschedule. Admin and the assigned Technician may advan
 | Data fetching | Axios plus a consistent query/cache approach selected during setup |
 | API | Node.js, Express, TypeScript, REST |
 | Validation | Zod or equivalent schema validation |
-| Database | MongoDB Atlas with Mongoose |
+| Database | PostgreSQL (Neon) via Prisma |
 | Authentication | JWT and bcrypt |
 | Media | Cloudinary or S3-compatible object storage |
 | Charts | Recharts |
@@ -294,7 +303,7 @@ Express API
   ├── Authentication and authorization
   ├── Validation and error handling
   ├── Domain services and state-transition policies
-  ├── Mongoose repositories/models ──► MongoDB Atlas
+  ├── Prisma repositories/models ──► PostgreSQL (Neon)
   └── Media adapter ─────────────────► Object storage/CDN
 ```
 
@@ -358,7 +367,7 @@ Each backend domain may contain its model, validation schema, service, controlle
 
 ## 7. Data Model
 
-All records use MongoDB ObjectIds and timestamps unless stated otherwise.
+All records use PostgreSQL UUID primary keys, snapshotted denormalized fields, and timestamps unless stated otherwise.
 
 ### User
 
@@ -372,7 +381,7 @@ All records use MongoDB ObjectIds and timestamps unless stated otherwise.
 
 `name`, `sku` (unique), `categoryId`, `brand`, `description`, `tags[]`, `imageUrls[]`, `price`, `discount`, `stock`, `specs`, `warranty`, `status` (`active | archived`).
 
-Money is represented consistently using integer minor units or MongoDB Decimal128; floating-point arithmetic is not permitted for authoritative totals.
+Money is represented consistently using integer minor units (BDT with no decimals) or PostgreSQL `Decimal`; floating-point arithmetic is not permitted for authoritative totals.
 
 ### Cart
 
@@ -457,7 +466,7 @@ Routes must be finalized in OpenAPI with validation schemas, authorization rules
 **Deliverables**
 
 - Repository structure, `AGENTS.md`, README, `.env.example`, lint/format/type-check scripts.
-- Express application, validated configuration, MongoDB connection, centralized errors, request IDs, health endpoint, and graceful shutdown.
+- Express application, validated configuration, PostgreSQL connection via Prisma, centralized errors, request IDs, health endpoint, and graceful shutdown.
 - React shell, routing, responsive layouts, API client, and initial design tokens.
 - Test harness, CI workflow, and local seed strategy.
 

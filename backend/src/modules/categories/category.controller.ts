@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "../../generated/prisma-client/index.js";
 import { prisma } from "../../config/prisma.js";
 import { AppError } from "../../shared/app-error.js";
 import { objectIdSchema } from "../../shared/object-id.js";

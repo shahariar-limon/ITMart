@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "../../generated/prisma-client/index.js";
 import type { Request, Response } from "express";
 import { prisma } from "../../config/prisma.js";
 import { AppError } from "../../shared/app-error.js";

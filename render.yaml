@@ -3,7 +3,9 @@ services:
     name: itmart-api
     runtime: node
     rootDir: .
-    buildCommand: npm ci && npm run build -w backend
+    # Render's pre-deploy command is unavailable on free web services, so the
+    # idempotent Prisma migration runs as part of the build.
+    buildCommand: npm ci --include=dev && npm run db:generate -w backend && npm run db:migrate -w backend && npm run build -w backend
     startCommand: npm run start -w backend
     healthCheckPath: /api/v1/health
     envVars:
@@ -11,9 +13,41 @@ services:
         value: 22
       - key: NODE_ENV
         value: production
-      - key: MONGODB_URI
+      - key: DATABASE_URL
         sync: false
+      - key: PRISMA_TRANSACTION_MAX_WAIT_MS
+        value: 10000
+      - key: PRISMA_TRANSACTION_TIMEOUT_MS
+        value: 30000
       - key: JWT_SECRET
         sync: false
       - key: CORS_ORIGIN
         sync: false
+      - key: PAYMENT_PROVIDER
+        value: bkash
+      - key: BKASH_BASE_URL
+        value: https://tokenized.sandbox.bka.sh/v1.2.0-beta
+      - key: BKASH_APP_KEY
+        sync: false
+      - key: BKASH_APP_SECRET
+        sync: false
+      - key: BKASH_USERNAME
+        sync: false
+      - key: BKASH_PASSWORD
+        sync: false
+      - key: BKASH_CALLBACK_URL
+        sync: false
+
+  - type: web
+    name: itmart-web
+    runtime: static
+    rootDir: .
+    buildCommand: npm ci --include=dev && npm run build -w frontend
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

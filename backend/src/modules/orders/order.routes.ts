@@ -26,3 +26,5 @@ orderRouter.post(
   requireRole("customer", "admin"),
   asyncHandler(controller.cancel),
 );
+orderRouter.post("/:orderId/returns", requireRole("customer"), asyncHandler(controller.requestReturn));
+orderRouter.get("/:orderId/invoice", requireRole("customer", "admin"), asyncHandler(controller.invoice));

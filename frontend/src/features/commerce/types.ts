@@ -45,6 +45,14 @@ export type Order = {
   grandTotal: number;
   currency: "BDT";
   shippingAddress: string;
+  deliveryMethod: "standard" | "express" | "pickup";
+  deliveryFee: number;
+  paymentMethod: "cod" | "simulated" | "bkash";
+  paymentStatus: "unpaid" | "authorized" | "paid" | "failed" | "refunded";
+  carrier?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  fulfilmentNotes?: string;
   createdAt: string;
   items: {
     productId: string;
@@ -60,5 +68,17 @@ export type Order = {
     quantity: number;
     unitPrice: number;
     lineTotal: number;
+  }[];
+  statusHistory: {
+    id: string;
+    from?: OrderStatus;
+    to: OrderStatus;
+    changedAt: string;
+  }[];
+  returnRequests: {
+    id: string;
+    status: string;
+    reason: string;
+    createdAt: string;
   }[];
 };

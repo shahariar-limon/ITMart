@@ -1,22 +1,17 @@
-import mongoose from "mongoose";
-import { MongoMemoryReplSet } from "mongodb-memory-server";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
-import { ServiceBookingModel } from "../src/modules/bookings/booking.model.js";
-import { UserModel } from "../src/modules/users/user.model.js";
+import { prisma } from "../src/config/prisma.js";
+import { resetDb } from "./helpers/db.js";
 
 const app = createApp();
-let replicaSet: MongoMemoryReplSet;
 
 beforeAll(async () => {
-  replicaSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-  await mongoose.connect(replicaSet.getUri());
+  await prisma.$connect();
 });
-beforeEach(async () => mongoose.connection.dropDatabase());
+beforeEach(async () => resetDb());
 afterAll(async () => {
-  await mongoose.disconnect();
-  await replicaSet.stop();
+  await prisma.$disconnect();
 });
 
 async function account(
@@ -27,7 +22,9 @@ async function account(
   await request(app)
     .post("/api/v1/auth/register")
     .send({ name: `${role} user`, email, password });
-  if (role !== "customer") await UserModel.updateOne({ email }, { role });
+  if (role !== "customer") {
+    await prisma.user.update({ where: { email }, data: { role } });
+  }
   const login = await request(app)
     .post("/api/v1/auth/login")
     .send({ email, password });
@@ -181,7 +178,7 @@ describe("services and bookings", () => {
     ]);
     expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
     expect(
-      await ServiceBookingModel.countDocuments({ status: "scheduled" }),
+      await prisma.serviceBooking.count({ where: { status: "scheduled" } }),
     ).toBe(1);
   });
 

@@ -6,9 +6,7 @@ ITMart is a unified IT product commerce and technical-service delivery platform.
 
 - Node.js 22 LTS or 24
 - npm 10+
-- MongoDB 7+ locally, or a MongoDB Atlas connection string
-
-MongoDB must run as a replica set before the transactional checkout phase is implemented.
+- A PostgreSQL database. The project targets Neon (PostgreSQL serverless); any PostgreSQL 14+ works. Copy `DATABASE_URL` from your Neon dashboard (see `backend/.env.example` for pooled vs. direct connection notes) so transactional checkout and booking features work.
 
 ## Setup
 
@@ -16,6 +14,8 @@ MongoDB must run as a replica set before the transactional checkout phase is imp
 2. Copy `backend/.env.example` to `backend/.env` and set a strong JWT secret.
 3. Copy `frontend/.env.example` to `frontend/.env` if the default API URL is unsuitable.
 4. Start both applications with `npm run dev`.
+
+Before running backend tests, create a separate Neon test branch and set its pooled connection string as `TEST_DATABASE_URL`. Tests intentionally truncate their database and will refuse to run without this isolated value.
 
 The web application defaults to `http://localhost:5173`; the API defaults to `http://localhost:4000`. Health is available at `GET /api/v1/health`.
 
@@ -37,7 +37,7 @@ The web application defaults to `http://localhost:5173`; the API defaults to `ht
 - Phase 4: Technical-service catalog, customer booking requests, Admin confirmation/assignment/scheduling, concurrency-safe overlap prevention, technician-scoped work progression, cancellation, and role-specific interfaces.
 - Phase 5: Admin operational dashboard and visual summaries.
 - Phase 6: Reviews, wishlist, comparison, bundles, notifications, reports, and CSV export.
-- Phase 7: Solution quotations, business pricing, optional AI fallback, and payment-provider abstraction.
+- Phase 7: Solution quotations, business pricing, and payment-provider abstraction.
 - Phase 8: Automated release gates, deployment manifests, test matrix, and operations runbook.
 
 ## Security notes
