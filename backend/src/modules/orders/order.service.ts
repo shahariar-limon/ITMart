@@ -4,7 +4,7 @@ import {
   type DeliveryMethod,
   type OrderStatus,
   type PaymentMethod,
-} from "../../generated/prisma-client/index.js";
+} from "@prisma/client";
 import { prisma } from "../../config/prisma.js";
 import { AppError } from "../../shared/app-error.js";
 import { recordAudit } from "../audit/audit.service.js";

@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "../../generated/prisma-client/index.js";
+import type { Prisma, PrismaClient } from "@prisma/client";
 type Db = PrismaClient | Prisma.TransactionClient;
 export async function queueCommunication(
   db: Db,
