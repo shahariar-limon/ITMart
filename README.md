@@ -35,7 +35,7 @@ On the bKash sandbox checkout page, use these public test-wallet details:
 
 | Field                   | Test value    |
 | ----------------------- | ------------- |
-| bKash account number    | `01770618575` |
+| bKash account number    | `01770618575-Insufficient, 01929918378-success` |
 | OTP / verification code | `123456`      |
 | PIN                     | `12121`       |
 
@@ -67,6 +67,14 @@ CORS_ORIGIN=https://itmart-api.onrender.com
 ```
 
 Save and redeploy the backend. The callback must reach Express before redirecting to the frontend's `/payment-result` page. Pointing it at `itmart-api.onrender.com/api/v1/...` reaches the frontend and returns 404.
+
+If the browser reaches `/payment-result?payment=failure&order=...` but shows plain-text **Not Found**, the callback redirect has succeeded and the frontend needs a React Router fallback. In Render, open the **static frontend service serving `itmart-api.onrender.com` → Redirects/Rewrites**, then add:
+
+| Source | Destination   | Action  |
+| ------ | ------------- | ------- |
+| `/*`   | `/index.html` | Rewrite |
+
+Save the rule, then reload the failed result page. Choose **Rewrite**, not Redirect. The repository's `render.yaml` already includes this rule for its static-site definition; a separately configured service still needs the rule in its own dashboard. See [Render's rewrite documentation](https://render.com/docs/redirects-rewrites).
 
 If bKash reports insufficient balance, verify its displayed amount and start a fresh checkout after deploying the amount fix. Reusing an old payment URL keeps the old inflated amount. If the amount is correct and the official test wallet still fails, use another test wallet supplied for your merchant account or contact bKash about its sandbox balance. The application cannot top up a bKash test wallet or turn a failed payment into a successful one. Cash on delivery remains available for the demonstration.
 
