@@ -51,7 +51,11 @@ export async function updateUser(
   const accessChange = input.role !== undefined || input.isActive !== undefined;
   const changed = await prisma.user.updateMany({
     where: { id, ...(accessChange ? { role: { not: "admin" as const } } : {}) },
-    data: input,
+    data: {
+      ...(input.name === undefined ? {} : { name: input.name }),
+      ...(input.role === undefined ? {} : { role: input.role }),
+      ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
+    },
   });
   if (!changed.count) {
     const existing = await prisma.user.findUnique({

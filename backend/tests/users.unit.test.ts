@@ -55,6 +55,18 @@ beforeEach(() => {
 });
 
 describe("Admin user API", () => {
+  it("omits undefined fields from the Prisma update payload", async () => {
+    const { updateUser } = await import("../src/modules/users/user.service.js");
+    await updateUser(targetId, {
+      name: "Updated name",
+      role: undefined,
+      isActive: undefined,
+    });
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: { id: targetId },
+      data: { name: "Updated name" },
+    });
+  });
   it("requires authentication for listing and editing", async () => {
     expect((await request(app).get("/api/v1/users")).status).toBe(401);
     expect(
