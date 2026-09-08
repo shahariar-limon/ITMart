@@ -15,9 +15,13 @@ export function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "bkash">(
-    "cod",
-  );
+  const [deliveryMethod, setDeliveryMethod] = useState<
+    "standard" | "express" | "pickup"
+  >("standard");
+  const deliveryFee = { standard: 8000, express: 18000, pickup: 0 }[
+    deliveryMethod
+  ];
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "bkash">("cod");
   const checkoutKey = useRef(crypto.randomUUID());
   const navigate = useNavigate();
   async function load() {
@@ -203,8 +207,16 @@ export function CartPage() {
           >
             <h2 className="text-2xl font-bold">Checkout</h2>
             <div className="mt-4 flex justify-between">
-              <span>Estimated total</span>
+              <span>Subtotal</span>
               <strong>{money(total)}</strong>
+            </div>
+            <div className="mt-2 flex justify-between">
+              <span>Delivery fee</span>
+              <strong>{money(deliveryFee)}</strong>
+            </div>
+            <div className="mt-2 flex justify-between">
+              <span>Estimated total</span>
+              <strong>{money(total + deliveryFee)}</strong>
             </div>
             <label className="mt-6 block text-sm font-medium">
               Shipping address
@@ -223,6 +235,12 @@ export function CartPage() {
               Delivery
               <select
                 name="deliveryMethod"
+                value={deliveryMethod}
+                onChange={(event) =>
+                  setDeliveryMethod(
+                    event.target.value as "standard" | "express" | "pickup",
+                  )
+                }
                 className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-800 p-3"
               >
                 <option value="standard">Standard · BDT 80</option>
@@ -236,9 +254,7 @@ export function CartPage() {
                 name="paymentMethod"
                 value={paymentMethod}
                 onChange={(event) =>
-                  setPaymentMethod(
-                    event.target.value as "cod" | "bkash",
-                  )
+                  setPaymentMethod(event.target.value as "cod" | "bkash")
                 }
                 className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-800 p-3"
               >

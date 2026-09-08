@@ -6,13 +6,14 @@ ITMart connects product shopping, inventory, service bookings, and technician as
 
 ## Live deployment
 
-| Resource     | Link                                                                                           |
-| ------------ | ---------------------------------------------------------------------------------------------- |
-| Live backend | [https://itmart-api.onrender.com](https://itmart-api.onrender.com)                             |
-| API base URL | [https://itmart-api.onrender.com/api/v1](https://itmart-api.onrender.com/api/v1)               |
-| Health check | [https://itmart-api.onrender.com/api/v1/health](https://itmart-api.onrender.com/api/v1/health) |
+| Resource      | Link                                                                                   |
+| ------------- | -------------------------------------------------------------------------------------- |
+| Live frontend | [https://itmart-api.onrender.com](https://itmart-api.onrender.com)                     |
+| Live backend  | [https://itmart.onrender.com](https://itmart.onrender.com)                             |
+| API base URL  | [https://itmart.onrender.com/api/v1](https://itmart.onrender.com/api/v1)               |
+| Health check  | [https://itmart.onrender.com/api/v1/health](https://itmart.onrender.com/api/v1/health) |
 
-The supplied URL hosts the backend API. Access the graphical login page through the frontend; locally, visit `http://localhost:5173/login`. A hosted frontend URL is not listed here.
+Despite its name, `itmart-api.onrender.com` hosts the frontend. The Express backend is at `itmart.onrender.com`. Use the [hosted login page](https://itmart-api.onrender.com/login), or locally visit `http://localhost:5173/login`.
 
 ## Demo login credentials
 
@@ -27,6 +28,47 @@ The [seed script](backend/src/seed.ts) provisions these demonstration accounts:
 Run `npm run db:seed -w backend` after applying migrations to create these accounts locally. Live access depends on whether the deployed database has been seeded; these credentials have not been verified against the live deployment.
 
 These are public demo credentials for demonstration environments. Rerunning the seed resets these accounts' passwords and updates sample catalog data. Replace or disable demo accounts before using an environment with real customer data.
+
+## bKash sandbox test payment
+
+On the bKash sandbox checkout page, use these public test-wallet details:
+
+| Field                   | Test value    |
+| ----------------------- | ------------- |
+| bKash account number    | `01770618575` |
+| OTP / verification code | `123456`      |
+| PIN                     | `12121`       |
+
+Enter the wallet number, confirm, then enter the OTP and PIN when prompted. These values come from the [official bKash tokenized sandbox demo](https://merchantdemo.sandbox.bka.sh/tokenized-checkout/version/v1.2.0-beta). They are for sandbox payments only. The server's `BKASH_USERNAME` and `BKASH_PASSWORD` are API credentials, not wallet login details.
+
+If the wallet is reported as ineligible, verify the number and that the checkout is using the sandbox environment. If it still fails, check the official demo or the test wallets supplied with your merchant sandbox account.
+
+### Payment amounts
+
+ITMart stores prices and order totals as integer **paisa** (100 paisa = 1 BDT). The bKash integration converts them to decimal **taka** when creating a payment and converts the verified provider amount back to paisa before comparing it with the order.
+
+For a BDT 2,850 subtotal:
+
+| Delivery | Fee (BDT) | bKash total (BDT) |
+| -------- | --------- | ----------------- |
+| Pickup   | 0         | 2,850.00          |
+| Standard | 80        | 2,930.00          |
+| Express  | 180       | 3,030.00          |
+
+After deploying an amount-conversion fix, cancel an old unpaid checkout and create a fresh order. Previously generated bKash checkout URLs retain their original amounts; existing order snapshots are not rewritten.
+
+### Redirect or insufficient-balance troubleshooting
+
+On the backend Render service (`itmart.onrender.com`), configure:
+
+```dotenv
+BKASH_CALLBACK_URL=https://itmart.onrender.com/api/v1/payments/bkash/callback
+CORS_ORIGIN=https://itmart-api.onrender.com
+```
+
+Save and redeploy the backend. The callback must reach Express before redirecting to the frontend's `/payment-result` page. Pointing it at `itmart-api.onrender.com/api/v1/...` reaches the frontend and returns 404.
+
+If bKash reports insufficient balance, verify its displayed amount and start a fresh checkout after deploying the amount fix. Reusing an old payment URL keeps the old inflated amount. If the amount is correct and the official test wallet still fails, use another test wallet supplied for your merchant account or contact bKash about its sandbox balance. The application cannot top up a bKash test wallet or turn a failed payment into a successful one. Cash on delivery remains available for the demonstration.
 
 ## Features
 
@@ -212,7 +254,7 @@ The [Render blueprint](render.yaml) defines an API service and a static frontend
 Configure backend secrets in the hosting dashboard and set `CORS_ORIGIN` to the frontend's exact origin. For a frontend using the supplied live API, set this value before building:
 
 ```dotenv
-VITE_API_URL=https://itmart-api.onrender.com/api/v1
+VITE_API_URL=https://itmart.onrender.com/api/v1
 ```
 
 The blueprint selects `bkash`; configure its server-side credentials for payment integration, or select `cod` when deploying without payment-provider credentials. Configure SPA rewrites so frontend routes work on direct navigation.

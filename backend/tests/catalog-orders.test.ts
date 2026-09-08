@@ -150,8 +150,8 @@ describe("cart, checkout, and orders", () => {
     expect(checkout.body.data.order).toMatchObject({
       subtotal: 20_000,
       discountTotal: 2_000,
-      grandTotal: 18_080,
-      deliveryFee: 80,
+      grandTotal: 26_000,
+      deliveryFee: 8000,
       status: "pending",
     });
     expect(checkout.body.data.order.items[0]).toMatchObject({

@@ -24,8 +24,8 @@ const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   cancelled: [],
 };
 const DELIVERY_FEES: Record<DeliveryMethod, number> = {
-  standard: 80,
-  express: 180,
+  standard: 8000,
+  express: 18000,
   pickup: 0,
 };
 const orderInclude = {

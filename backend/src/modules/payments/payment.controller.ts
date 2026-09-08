@@ -5,6 +5,7 @@ import { prisma } from "../../config/prisma.js";
 import { AppError } from "../../shared/app-error.js";
 import { cancel } from "../orders/order.service.js";
 import { executeBkashPayment } from "./payment.service.js";
+import { fromBkashAmount } from "./payment-amount.js";
 
 const callbackSchema = z.object({
   paymentID: z.string().min(1),
@@ -51,8 +52,10 @@ export async function bkashCallback(request: Request, response: Response) {
   }
 
   const execution = await executeBkashPayment(input.paymentID);
-  const transactionStatus = String(execution.transactionStatus ?? "").toLowerCase();
-  const providerAmount = Number(execution.amount);
+  const transactionStatus = String(
+    execution.transactionStatus ?? "",
+  ).toLowerCase();
+  const providerAmount = fromBkashAmount(execution.amount);
   const providerPaymentId = String(execution.paymentID ?? "");
   const providerInvoice = String(execution.merchantInvoiceNumber ?? "");
   if (

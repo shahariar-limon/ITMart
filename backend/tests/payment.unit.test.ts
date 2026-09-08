@@ -17,7 +17,7 @@ afterEach(() => {
   vi.resetModules();
 });
 
-async function paymentRequest(response: object) {
+async function paymentRequest(response: object, amount = 1000) {
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(
@@ -28,13 +28,28 @@ async function paymentRequest(response: object) {
   const { createBkashPayment } =
     await import("../src/modules/payments/payment.service.js");
   return createBkashPayment({
-    amount: 10,
+    amount,
     invoiceNumber: "TEST-1",
     payerReference: "customer",
   });
 }
 
 describe("bKash response handling", () => {
+  it("sends paisa as taka rather than charging 100 times the total", async () => {
+    await paymentRequest(
+      {
+        statusCode: "0000",
+        paymentID: "payment-1",
+        bkashURL: "https://sandbox.bka.sh/checkout",
+      },
+      285000,
+    );
+    const createCall = vi.mocked(fetch).mock.calls[1];
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
+      amount: "2850.00",
+      currency: "BDT",
+    });
+  });
   it("identifies callback rejection even when HTTP status is 200", async () => {
     await expect(
       paymentRequest({

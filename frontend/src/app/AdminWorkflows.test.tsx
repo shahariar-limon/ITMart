@@ -8,6 +8,7 @@ import { AdminCatalogPage } from "../features/commerce/AdminCatalogPage";
 import { AdminServicesPage } from "../features/services/AdminServicesPage";
 import { AdminBundlesPage } from "../features/release/AdminBundlesPage";
 import { OrdersPage } from "../features/commerce/OrdersPage";
+import { CartPage } from "../features/commerce/CartPage";
 import { App } from "./App";
 
 const auth = vi.hoisted(() => ({
@@ -96,6 +97,29 @@ beforeEach(() => {
 });
 
 describe("Admin workflows", () => {
+  it("includes the selected delivery fee in the checkout estimate", async () => {
+    auth.user.role = "customer";
+    vi.mocked(apiClient.get).mockResolvedValue(
+      envelope({
+        cart: {
+          items: [
+            {
+              productId: { ...product, price: 285000, discount: 0 },
+              quantity: 1,
+            },
+          ],
+          bundleItems: [],
+        },
+      }),
+    );
+    show(<CartPage />);
+    expect(await screen.findByText(/2,930/)).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Delivery"), "express");
+    expect(screen.getByText(/3,030/)).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Delivery"), "pickup");
+    expect(screen.queryByText(/3,030/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/2,850/).length).toBeGreaterThan(0);
+  });
   it("confirms an unassigned booking without crashing and allows assignment", async () => {
     let confirmed = false;
     vi.mocked(apiClient.get).mockImplementation(async (url) =>

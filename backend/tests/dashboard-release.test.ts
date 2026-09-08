@@ -181,7 +181,7 @@ describe("dashboard and release modules", () => {
       .set("Authorization", `Bearer ${customer.token}`)
       .send({ shippingAddress: "12 Bundle Road, Dhaka", idempotencyKey: randomUUID() });
     expect(checkout.status).toBe(201);
-    expect(checkout.body.data.order).toMatchObject({ grandTotal: 22_080 });
+    expect(checkout.body.data.order).toMatchObject({ grandTotal: 30_000 });
     expect(checkout.body.data.order.bundleItems).toHaveLength(1);
     expect((await prisma.product.findUnique({ where: { id: product._id } }))?.stock).toBe(2);
     expect(
@@ -222,7 +222,7 @@ describe("dashboard and release modules", () => {
       });
     expect(checkout.status).toBe(201);
     expect(checkout.body.data.order).toMatchObject({
-      grandTotal: 95_080,
+      grandTotal: 103_000,
       paymentStatus: "authorized",
       paymentMethod: "simulated",
     });

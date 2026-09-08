@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { env } from "../../config/env.js";
 import { AppError } from "../../shared/app-error.js";
+import { toBkashAmount } from "./payment-amount.js";
 
 export type PaymentMethod = "cod" | "simulated";
 export async function authorizePayment(method: PaymentMethod, amount: number) {
@@ -118,7 +119,7 @@ export async function createBkashPayment(input: {
       mode: "0011",
       payerReference: input.payerReference,
       callbackURL: config.callbackUrl,
-      amount: input.amount.toFixed(2),
+      amount: toBkashAmount(input.amount),
       currency: "BDT",
       intent: "sale",
       merchantInvoiceNumber: input.invoiceNumber,
