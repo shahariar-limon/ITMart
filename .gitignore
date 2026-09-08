@@ -76,3 +76,8 @@ Improved_Project_Plan.md
 PROJECT_STATUS_AND_DIAGRAM_PROMPTS.md
 
 .backend/.env
+# Ignore all markdown files
+*.md
+
+# Allow README
+!README.md
