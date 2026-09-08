@@ -13,18 +13,13 @@
     "test": "npm run test -w backend && npm run test -w frontend",
     "lint": "npm run lint -w backend && npm run lint -w frontend",
     "format:check": "prettier --check .",
-    "format": "prettier --write .",
-    "postinstall": "prisma skills sync || exit 0"
+    "format": "prettier --write ."
   },
-  "devDependencies": {
-    "concurrently": "^9.2.1",
-    "prettier": "^3.6.2",
-    "prisma": "8.0.0-rc.12"
-  },
+"devDependencies": {
+  "concurrently": "^9.2.1",
+  "prettier": "^3.6.2"
+},
   "engines": {
     "node": ">=22 <25"
-  },
-  "dependencies": {
-    "@prisma/client": "^6.15.0"
   }
 }
